@@ -7,12 +7,15 @@
 
 namespace multidim {
 
-	template <typename Container, typename Ref>
-	struct enable_inner_container {
+	struct inner_container_base {};
+
+	template <typename Container, typename Ref, typename ConstRef>
+	struct enable_inner_container : public inner_container_base {
 		using container_type = Container;
 		using container_ref_type = Ref;
+		using container_const_ref_type = ConstRef;
 		using container_extents_type = typename Container::container_extents_type;
-		static_assert(std::is_same_v<typename Container::container_extents_type, typename Ref::container_extents_type>, "Container and Ref must have the same extents_type");
+		static_assert(std::is_same_v<typename Container::container_extents_type, typename Ref::container_extents_type> && std::is_same_v<typename Ref::container_extents_type, typename ConstRef::container_extents_type>, "Container, Ref, and ConstRef must have the same extents_type");
 	};
 
 
@@ -43,15 +46,21 @@ namespace multidim {
 	struct element_traits {
 		using value_type = T;
 		using reference = T&;
+		using const_reference = const T&;
+		using pointer = T*;
+		using const_pointer = const T*;
 		using extents_type = unit_extent;
 		using base_element = value_type;
 		using buffer_type = fixed_buffer<T, 1>;
 		constexpr static bool is_inner_container = false;
 	};
 	template <typename T>
-	struct element_traits<T, std::enable_if_t<std::is_base_of_v<enable_inner_container<typename T::container_type, typename T::container_ref_type>, T>>> {
+	struct element_traits<T, std::enable_if_t<std::is_base_of_v<inner_container_base, T>>> {
 		using value_type = void;
 		using reference = typename T::container_ref_type;
+		using const_reference = typename T::container_const_ref_type;
+		using pointer = void;
+		using const_pointer = void;
 		using extents_type = typename T::container_extents_type;
 		using base_element = typename reference::base_element;
 		using buffer_type = typename reference::buffer_type;
