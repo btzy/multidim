@@ -1,9 +1,4 @@
 #pragma once
 
 #include "multidim/array.hpp"
-
-namespace multidim {
-	int f() {
-		return 2;
-	}
-}
+#include "multidim/dynarray.hpp"
