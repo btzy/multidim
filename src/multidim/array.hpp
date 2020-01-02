@@ -41,7 +41,7 @@ namespace multidim {
 
 
 
-	template <typename Array, typename T, size_t N, bool Owning>
+	template <typename Array, typename T, size_t N, bool Owning, bool IsConst>
 	class array_base {
 	public:
 		using value_type = typename element_traits<T>::value_type;
@@ -60,7 +60,7 @@ namespace multidim {
 		constexpr const_iterator cbegin() const noexcept { return multidim::const_iterator<T>(static_cast<const Array&>(*this).data(), extents_, 0); }
 		constexpr const_iterator cend() const noexcept { return multidim::const_iterator<T>(static_cast<const Array&>(*this).data_offset(N), extents_, N); }
 	protected:
-		using underlying_store = std::conditional_t<Owning, buffer_type, base_element*>;
+		using underlying_store = std::conditional_t<Owning, buffer_type, std::conditional_t<IsConst, const base_element*, base_element*>>;
 		template <typename... Args>
 		constexpr array_base(const element_extents_type& extents, Args&&... args) noexcept : data_(std::forward<Args>(args)...), extents_(extents) {}
 		constexpr array_base(const array_base& other) = default;
@@ -73,11 +73,11 @@ namespace multidim {
 	};
 
 	template <typename T, size_t N>
-	class array : public array_base<array<T, N>, T, N, true> {
+	class array : public array_base<array<T, N>, T, N, true, false> {
 	public:
-		using B = array_base<array<T, N>, T, N, true>;
+		using B = array_base<array<T, N>, T, N, true, false>;
 		constexpr array(const array&) noexcept = default;
-		constexpr array(array&& other) noexcept = delete;
+		constexpr array(array&& other) noexcept = delete; // todo
 		template <typename... TNs, typename = std::enable_if_t<std::conjunction_v<std::is_convertible<size_t, TNs>...>>>
 		constexpr explicit array(TNs... ns) noexcept : B(B::element_extents_type(ns...)) {}
 		constexpr array& operator=(const array&) noexcept = default;
@@ -116,17 +116,22 @@ namespace multidim {
 	};
 
 	template <typename T, size_t N>
-	class array_ref : public array_base<array_ref<T, N>, T, N, false> {
+	class array_ref : public array_base<array_ref<T, N>, T, N, false, false> {
 	private:
-		using B = array_base<array_ref<T, N>, T, N, false>;
+		using B = array_base<array_ref<T, N>, T, N, false, false>;
 		static_assert(!B::container_extents_type::is_dynamic, "extents_type must be static");
 	public:
-		constexpr array_ref() = delete;
+		/**
+		 * Default-constructed array_ref.
+		 * This should not be used for anything apart from reassignment, but is provided for convenience of some algorithms.
+		 * Two value-initialised instances are guaranteed to compare equal with operator==.
+		 */
+		constexpr array_ref() = default;
 		constexpr array_ref(const array_ref&) = default;
 		constexpr array_ref(array_ref&&) = default;
 		constexpr array_ref(typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
-		constexpr array_ref& operator=(const array_ref&) = default;
-		constexpr array_ref& operator=(array_ref&&) = default;
+		constexpr array_ref& operator=(const array_ref&) = delete; // for now it is deleted, but it should copy the referred slice
+		constexpr array_ref& operator=(array_ref&&) = delete;
 
 		constexpr typename B::base_element* data() const noexcept { return to_pointer(data_); }
 	private:
@@ -144,23 +149,34 @@ namespace multidim {
 		}
 		constexpr typename B::iterator begin() const noexcept { return multidim::iterator<T>(data(), extents_, 0); }
 		constexpr typename B::iterator end() const noexcept { return multidim::iterator<T>(data_offset(N), extents_, N); }
+
+		/**
+		 * Rebinds this reference to another object that is n objects away from the current object.
+		 */
+		constexpr inline void rebind_relative(typename B::difference_type n) noexcept { data_ += n * N * extents_.stride(); }
 	};
 
 	template <typename T, size_t N>
-	class array_const_ref : public array_base<array_const_ref<T, N>, T, N, false> {
+	class array_const_ref : public array_base<array_const_ref<T, N>, T, N, false, true> {
 	private:
-		using B = array_base<array_const_ref<T, N>, T, N, false>;
+		using B = array_base<array_const_ref<T, N>, T, N, false, true>;
 		static_assert(!B::container_extents_type::is_dynamic, "extents_type must be static");
 	public:
-		constexpr array_const_ref() = delete;
+		/**
+		 * Default-constructed array_const_ref.
+		 * This should not be used for anything apart from reassignment, but is provided for convenience of some algorithms.
+		 * Two value-initialised instances are guaranteed to compare equal with operator==.
+		 */
+		constexpr array_const_ref() = default;
 		constexpr array_const_ref(const array_const_ref&) = default;
 		constexpr array_const_ref(array_const_ref&&) = default;
-		constexpr array_const_ref(typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
-		constexpr array_const_ref& operator=(const array_const_ref&) = default;
-		constexpr array_const_ref& operator=(array_const_ref&&) = default;
+		constexpr array_const_ref(const typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
+		constexpr array_const_ref& operator=(const array_const_ref&) = delete;
+		constexpr array_const_ref& operator=(array_const_ref&&) = delete;
 
 		constexpr const typename B::base_element* data() const noexcept { return to_pointer(data_); }
 	private:
+		friend class B;
 		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(data_) + index * extents_.stride(); }
 	public:
 		constexpr typename B::const_reference operator[](typename B::size_type index) const noexcept {
@@ -174,6 +190,11 @@ namespace multidim {
 		}
 		constexpr typename B::const_iterator begin() const noexcept { return cbegin(); }
 		constexpr typename B::const_iterator end() const noexcept { return cend(); }
+
+		/**
+		 * Rebinds this reference to another object that is n objects away from the current object.
+		 */
+		constexpr inline void rebind_relative(typename B::difference_type n) noexcept { data_ += n * N * extents_.stride(); }
 	};
 
 }
