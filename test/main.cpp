@@ -290,8 +290,6 @@ TEST_CASE("2d fill array", "[2d][array][fill]") {
 	arr_t arr, other;
 	for (int i = 0; i < 10; ++i) {
 		for (int j = 0; j < 6; ++j) {
-			const int ii = i + 1;
-			const int jj = j + 1;
 			arr[i][j] = 42 + j;
 		}
 	}

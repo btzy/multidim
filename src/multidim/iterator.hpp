@@ -48,8 +48,10 @@ namespace multidim {
 	 */
 	template <typename T, bool IsConst>
 	class iterator_intermediate_impl : public iterator_base_impl<T, IsConst> {
+	private:
+		using B = iterator_base_impl<T, IsConst>;
 	public:
-		constexpr iterator_intermediate_impl(base_element* data, const element_extents_type& extents, size_type index) noexcept : ref_(data, extents), index_(index) {}
+		constexpr iterator_intermediate_impl(typename B::base_element* data, const typename B::element_extents_type& extents, typename B::size_type index) noexcept : ref_(data, extents), index_(index) {}
 		/**
 		 * Default-constructed iterator.
 		 * This should not be used for anything apart from reassignment, but is provided for convenience of some algorithms.
@@ -57,23 +59,27 @@ namespace multidim {
 		 */
 		constexpr iterator_intermediate_impl() noexcept = default;
 		constexpr iterator_intermediate_impl(const iterator_intermediate_impl&) noexcept = default;
-		constexpr iterator_intermediate_impl& operator=(const iterator_intermediate_impl&) noexcept = default;
+		constexpr iterator_intermediate_impl& operator=(const iterator_intermediate_impl& other) noexcept {
+			assert(ref_.extents() == other.ref_.extents());
+			ref_.rebind(other.ref_.data());
+			index_ = other.index_;
+		}
 
-		constexpr reference operator*() const noexcept { return ref_; }
-		constexpr const reference* operator->() const noexcept { return &ref_; }
+		constexpr typename B::reference operator*() const noexcept { return ref_; }
+		constexpr const typename B::reference* operator->() const noexcept { return &ref_; }
 
 		constexpr iterator_intermediate_impl& operator++() noexcept { ref_.rebind_relative(1); ++index_; return *this; }
 		constexpr iterator_intermediate_impl operator++(int) noexcept { auto tmp = *this; ++(*this); return tmp; }
 		constexpr iterator_intermediate_impl& operator--() noexcept { ref_.rebind_relative(-1); --index_; return *this; }
 		constexpr iterator_intermediate_impl operator--(int) noexcept { auto tmp = *this; --(*this); return tmp; }
-		constexpr iterator_intermediate_impl& operator+=(difference_type n) noexcept { ref_.rebind_relative(n); index_ += n; return *this; }
-		constexpr iterator_intermediate_impl operator+(difference_type n) const noexcept { auto tmp = *this; return tmp += n; }
-		friend constexpr iterator_intermediate_impl operator+(difference_type n, const iterator_intermediate_impl& it) noexcept { return it + n; }
-		constexpr iterator_intermediate_impl& operator-=(difference_type n) noexcept { ref_.rebind_relative(-n); index_ -= n; return *this; }
-		constexpr iterator_intermediate_impl operator-(difference_type n) const noexcept { auto tmp = *this; return tmp -= n; }
-		friend constexpr difference_type operator-(const iterator_intermediate_impl& b, const iterator_intermediate_impl& a) noexcept { return b.index_ - a.index_; }
+		constexpr iterator_intermediate_impl& operator+=(typename B::difference_type n) noexcept { ref_.rebind_relative(n); index_ += n; return *this; }
+		constexpr iterator_intermediate_impl operator+(typename B::difference_type n) const noexcept { auto tmp = *this; return tmp += n; }
+		friend constexpr iterator_intermediate_impl operator+(typename B::difference_type n, const iterator_intermediate_impl& it) noexcept { return it + n; }
+		constexpr iterator_intermediate_impl& operator-=(typename B::difference_type n) noexcept { ref_.rebind_relative(-n); index_ -= n; return *this; }
+		constexpr iterator_intermediate_impl operator-(typename B::difference_type n) const noexcept { auto tmp = *this; return tmp -= n; }
+		friend constexpr typename B::difference_type operator-(const iterator_intermediate_impl& b, const iterator_intermediate_impl& a) noexcept { return b.index_ - a.index_; }
 
-		constexpr reference operator[](difference_type n) const noexcept { return *(*this + n); }
+		constexpr typename B::reference operator[](typename B::difference_type n) const noexcept { return *(*this + n); }
 
 		friend constexpr bool operator==(const iterator_intermediate_impl& a, const iterator_intermediate_impl& b) noexcept { return a.index_ == b.index_; }
 		friend constexpr bool operator!=(const iterator_intermediate_impl& a, const iterator_intermediate_impl& b) noexcept { return !(a == b); }
@@ -87,10 +93,9 @@ namespace multidim {
 #endif
 
 	private:
-		using B = iterator_base_impl<T, IsConst>;
-		static_assert(!std::is_same_v<element_extents_type, unit_extent>, "extents_type must not be unit_extent for intermediate level iterators");
+		static_assert(!std::is_same_v<typename B::element_extents_type, unit_extent>, "extents_type must not be unit_extent for intermediate level iterators");
 		typename B::reference ref_;
-		size_type index_; // the index of the element pointed to; we need to store this in case one of the extents is zero, so that comparison with end() will work properly
+		typename B::size_type index_; // the index of the element pointed to; we need to store this in case one of the extents is zero, so that comparison with end() will work properly
 	};
 
 	/**
@@ -98,9 +103,11 @@ namespace multidim {
 	 */
 	template <typename T, bool IsConst>
 	class iterator_lowest_impl : public iterator_base_impl<T, IsConst> {
+	private:
+		using B = iterator_base_impl<T, IsConst>;
 	public:
-		static_assert(std::is_same_v<element_extents_type, unit_extent>, "element_extents_type must be unit_extent");
-		constexpr iterator_lowest_impl(base_element* data, const element_extents_type&, size_type) noexcept : ptr_(data) {}
+		static_assert(std::is_same_v<typename B::element_extents_type, unit_extent>, "element_extents_type must be unit_extent");
+		constexpr iterator_lowest_impl(typename B::base_element* data, const typename B::element_extents_type&, typename B::size_type) noexcept : ptr_(data) {}
 		/**
 		 * Default-constructed iterator.
 		 * This should not be used for anything apart from reassignment, but is provided for convenience of some algorithms.
@@ -110,21 +117,21 @@ namespace multidim {
 		constexpr iterator_lowest_impl(const iterator_lowest_impl&) noexcept = default;
 		constexpr iterator_lowest_impl& operator=(const iterator_lowest_impl&) noexcept = default;
 
-		constexpr reference operator*() const noexcept { return *ptr_; }
-		constexpr pointer operator->() const noexcept { return ptr; }
+		constexpr typename B::reference operator*() const noexcept { return *ptr_; }
+		constexpr typename B::pointer operator->() const noexcept { return ptr_; }
 
 		constexpr iterator_lowest_impl& operator++() noexcept { ++ptr_; return *this; }
 		constexpr iterator_lowest_impl operator++(int) noexcept { auto tmp = *this; ++(*this); return tmp; }
 		constexpr iterator_lowest_impl& operator--() noexcept { --ptr_; return *this; }
 		constexpr iterator_lowest_impl operator--(int) noexcept { auto tmp = *this; --(*this); return tmp; }
-		constexpr iterator_lowest_impl& operator+=(difference_type n) noexcept { ptr_ += n; return *this; }
-		constexpr iterator_lowest_impl operator+(difference_type n) const noexcept { auto tmp = *this; return tmp += n; }
-		friend constexpr iterator_lowest_impl operator+(difference_type n, const iterator_lowest_impl& it) noexcept { return it + n; }
-		constexpr iterator_lowest_impl& operator-=(difference_type n) noexcept { ptr_ -= n; return *this; }
-		constexpr iterator_lowest_impl operator-(difference_type n) const noexcept { auto tmp = *this; return tmp -= n; }
-		friend constexpr difference_type operator-(const iterator_lowest_impl& b, const iterator_lowest_impl& a) noexcept { return b.ptr_ - a.ptr_; }
+		constexpr iterator_lowest_impl& operator+=(typename B::difference_type n) noexcept { ptr_ += n; return *this; }
+		constexpr iterator_lowest_impl operator+(typename B::difference_type n) const noexcept { auto tmp = *this; return tmp += n; }
+		friend constexpr iterator_lowest_impl operator+(typename B::difference_type n, const iterator_lowest_impl& it) noexcept { return it + n; }
+		constexpr iterator_lowest_impl& operator-=(typename B::difference_type n) noexcept { ptr_ -= n; return *this; }
+		constexpr iterator_lowest_impl operator-(typename B::difference_type n) const noexcept { auto tmp = *this; return tmp -= n; }
+		friend constexpr typename B::difference_type operator-(const iterator_lowest_impl& b, const iterator_lowest_impl& a) noexcept { return b.ptr_ - a.ptr_; }
 
-		constexpr reference operator[](difference_type n) const noexcept { return *(*this + n); }
+		constexpr typename B::reference operator[](typename B::difference_type n) const noexcept { return *(*this + n); }
 
 		friend constexpr bool operator==(const iterator_lowest_impl& a, const iterator_lowest_impl& b) noexcept { return a.ptr_ == b.ptr_; }
 		friend constexpr bool operator!=(const iterator_lowest_impl& a, const iterator_lowest_impl& b) noexcept { return !(a == b); }
@@ -138,8 +145,7 @@ namespace multidim {
 #endif
 
 	private:
-		using B = iterator_base_impl<T, IsConst>;
-		static_assert(std::is_same_v<element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
+		static_assert(std::is_same_v<typename B::element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
 		typename B::pointer ptr_;
 	};
 

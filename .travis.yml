@@ -2,11 +2,12 @@ language: cpp
 
 env:
   global:
-    - CXX_FLAGS="-Wall -pedantic -std=c++17"
+    - CXX_FLAGS="-Wall -Wextra -pedantic"
 
 matrix:
   include:
     - os: linux
+      dist: xenial
       addons:
         apt:
           sources:
@@ -14,23 +15,95 @@ matrix:
           packages:
             - g++-7
       env:
-        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+        - CC="gcc-7"
+        - CXX="g++-7"
+        - MATRIX_CXX_FLAGS="-std=c++17"
+        - BUILD_TYPE="DEBUG"
     - os: linux
+      dist: xenial
       addons:
         apt:
           sources:
-            - llvm-toolchain-trusty-4.0
+            - ubuntu-toolchain-r-test
           packages:
-            - clang-4.0
+            - g++-9
       env:
-        - MATRIX_EVAL="CC=clang-4.0 && CXX=clang++-4.0"
+        - CC="gcc-9"
+        - CXX="g++-9"
+        - MATRIX_CXX_FLAGS="-std=c++17"
+        - BUILD_TYPE="RELEASE"
+    - os: linux
+      dist: xenial
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-9
+      env:
+        - CC="gcc-9"
+        - CXX="g++-9"
+        - MATRIX_CXX_FLAGS="-std=c++2a"
+        - BUILD_TYPE="DEBUG"
+    - os: linux
+      dist: xenial
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-xenial-5.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - clang-5.0
+            - g++-7
+      env:
+        - CC="clang-5.0"
+        - CXX="clang++-5.0"
+        - MATRIX_CXX_FLAGS="-std=c++17"
+        - BUILD_TYPE="DEBUG"
+    - os: linux
+      dist: bionic
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-bionic-8
+          packages:
+            - clang-8
+            - libc++-dev
+            - libc++abi-dev
+      env:
+        - CC="clang-8"
+        - CXX="clang++-8"
+        - MATRIX_CXX_FLAGS="-std=c++17 -stdlib=libc++"
+        - BUILD_TYPE="RELEASE"
+    - os: linux
+      dist: bionic
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-bionic-8
+          packages:
+            - clang-8
+            - libc++-dev
+            - libc++abi-dev
+      env:
+        - CC="clang-8"
+        - CXX="clang++-8"
+        - MATRIX_CXX_FLAGS="-std=c++2a -stdlib=libc++"
+        - BUILD_TYPE="DEBUG"
+    - os: osx
+      osx_image: xcode10.2
+      env:
+        - CC="clang"
+        - CXX="clang++"
+        - MATRIX_CXX_FLAGS="-std=c++17"
+        - BUILD_TYPE="RELEASE"
 
 before_install:
-    - eval "${MATRIX_EVAL}"
+    - export CXX_FLAGS=${CXX_FLAGS}" "${MATRIX_CXX_FLAGS}
 
 script:
     - mkdir build
     - cd build
-    - cmake ${CMAKE_OPTIONS} -DCMAKE_CXX_FLAGS=${CXX_FLAGS} -DCMAKE_BUILD_TYPE=DEBUG ..
+    - cmake ${CMAKE_OPTIONS} -DCMAKE_CXX_FLAGS="${CXX_FLAGS}" -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ..
     - cmake --build .
     - ctest

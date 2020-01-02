@@ -27,8 +27,16 @@ namespace multidim {
 		constexpr explicit dynamic_extent() noexcept : size_(0), element_extent_() {}
 		friend bool operator==(const dynamic_extent& a, const dynamic_extent& b) noexcept { return a.size_ == b.size_ && a.element_extent_ == b.element_extent_; }
 		friend bool operator!=(const dynamic_extent& a, const dynamic_extent& b) noexcept { return !(a == b); }
+
 	private:
 		size_t size_;
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif
 		[[no_unique_address]] E element_extent_;
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	};
 }

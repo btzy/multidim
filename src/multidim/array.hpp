@@ -3,6 +3,7 @@
 #include <iterator> // for std::reverse_iterator
 #include <memory> // for std::forward()
 #include <type_traits>
+#include <utility> // for declaration of std::tuple_size / std::tuple_element
 
 #include "core.hpp"
 #include "iterator.hpp"
@@ -38,8 +39,16 @@ namespace multidim {
 		constexpr explicit static_extent(TNs... ns) noexcept : element_extent_(ns...) {}
 		friend bool operator==(const static_extent& a, const static_extent& b) noexcept { return a.element_extent_ == b.element_extent_; }
 		friend bool operator!=(const static_extent& a, const static_extent& b) noexcept { return !(a == b); }
+
 	private:
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif
 		[[no_unique_address]] E element_extent_;
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	};
 
 
@@ -61,7 +70,7 @@ namespace multidim {
 		using element_extents_type = typename element_traits<T>::extents_type;
 		using container_extents_type = static_extent<element_extents_type, N>;
 		using base_element = typename element_traits<T>::base_element;
-		using buffer_type = typename add_dim_to_buffer_t<typename element_traits<T>::buffer_type, N>;
+		using buffer_type = add_dim_to_buffer_t<typename element_traits<T>::buffer_type, N>;
 
 		constexpr size_type size() const noexcept { return N; }
 		constexpr size_type max_size() const noexcept { return N; }
@@ -74,19 +83,28 @@ namespace multidim {
 		using underlying_store = std::conditional_t<Owning, buffer_type, std::conditional_t<IsConst, const base_element*, base_element*>>;
 		template <typename... Args>
 		constexpr array_base(const element_extents_type& extents, Args&&... args) noexcept : data_(std::forward<Args>(args)...), extents_(extents) {}
-		constexpr array_base() noexcept = default;
+		constexpr array_base() = default;
 		constexpr array_base(const array_base&) = delete;
 		constexpr array_base& operator=(const array_base&) = delete;
 		// no move constructor or move assignment operator, derived classes should use the first constructor of array_base to do it.
 
-		friend constexpr void swap(array_base& a, array_base& b) noexcept {
+		constexpr void swap(array_base& other) noexcept {
 			using std::swap;
-			swap(a.data_, b.data_);
-			swap(a.extents_, b.extents_);
+			swap(data_, other.data_);
+			swap(extents_, other.extents_);
 		}
 
+		constexpr const element_extents_type& extents() const noexcept { return extents_; }
+
 		underlying_store data_;
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif
 		[[no_unique_address]] element_extents_type extents_;
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	};
 
 	template <typename T, size_t N>
@@ -98,68 +116,70 @@ namespace multidim {
 			other.extents_ = typename B::element_extents_type();
 		}
 		template <typename... TNs, typename = std::enable_if_t<std::conjunction_v<std::is_convertible<size_t, TNs>...>>>
-		constexpr explicit array(TNs... ns) noexcept : B(B::element_extents_type(ns...)) {}
+		constexpr explicit array(TNs... ns) noexcept : B(typename B::element_extents_type(ns...)) {}
 		constexpr array& operator=(const array& other) noexcept {
-			extents_ = other.extents_;
-			data_ = other.data_.clone(N * other.extents_.stride());
+			this->extents_ = other.extents_;
+			this->data_ = other.data_.clone(N * other.extents_.stride());
 		}
 		constexpr array& operator=(array&& other) noexcept {
-			extents_ = other.extents_;
-			data_ = std::move(other.data_); // will reset other.data_
+			this->extents_ = other.extents_;
+			this->data_ = std::move(other.data_); // will reset other.data_
 			other.extents_ = typename B::element_extents_type();
 		};
 
 		friend constexpr void swap(array& a, array& b) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
-			swap(static_cast<B&>(a), static_cast<B&>(b));
+			a.swap(b);
 		}
-		//constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) { swap(*this, other); }
+		constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
+			B::swap(other);
+		}
 
 
 		/**
 		 * Converting to array_ref.
 		 */
 		constexpr operator array_ref<T, N>() noexcept {
-			return array_ref<T, N>{ data_.data(), typename B::container_extents_type{ extents_ } };
+			return array_ref<T, N>{ this->data_.data(), typename B::container_extents_type{ this->extents_ } };
 		}
 		/**
 		 * Converting to array_const_ref.
 		 */
 		constexpr operator array_const_ref<T, N>() const noexcept {
-			return array_const_ref<T, N>{ data_.data(), typename B::container_extents_type{ extents_ } };
+			return array_const_ref<T, N>{ this->data_.data(), typename B::container_extents_type{ this->extents_ } };
 		}
 
-		constexpr typename B::base_element* data() noexcept { return to_pointer(data_); }
-		constexpr const typename B::base_element* data() const noexcept { return to_pointer(data_); }
+		constexpr typename B::base_element* data() noexcept { return to_pointer(this->data_); }
+		constexpr const typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
 	private:
-		friend class B;
-		constexpr typename B::base_element* data_offset(typename B::size_type index) noexcept { return to_pointer(data_) + index * extents_.stride(); }
-		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(data_) + index * extents_.stride(); }
+		friend B;
+		constexpr typename B::base_element* data_offset(typename B::size_type index) noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::reference operator[](typename B::size_type index) noexcept {
 			if constexpr (element_traits<T>::is_inner_container) {
-				return B::reference{ data_offset(index), extents_ };
+				return typename B::reference{ data_offset(index), this->extents_ };
 			}
 			else {
-				static_assert(std::is_same_v<element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
+				static_assert(std::is_same_v<typename B::element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
 				return data()[index];
 			}
 		}
 		constexpr typename B::const_reference operator[](typename B::size_type index) const noexcept {
 			if constexpr (element_traits<T>::is_inner_container) {
-				return typename B::const_reference{ data_offset(index), extents_ };
+				return typename B::const_reference{ data_offset(index), this->extents_ };
 			}
 			else {
-				static_assert(std::is_same_v<element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
+				static_assert(std::is_same_v<typename B::element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
 				return data()[index];
 			}
 		}
 		constexpr typename B::reference at(typename B::size_type index) noexcept { if (index >= N) throw std::out_of_range("element access index out of range"); else return operator[](index); }
 		constexpr typename B::const_reference at(typename B::size_type index) const noexcept { if (index >= N) throw std::out_of_range("element access index out of range"); else return operator[](index); }
 
-		constexpr typename B::const_iterator begin() const noexcept { return cbegin(); }
-		constexpr typename B::iterator begin() noexcept { return multidim::iterator<T>(data(), extents_, 0); }
-		constexpr typename B::const_iterator end() const noexcept { return cend(); }
-		constexpr typename B::iterator end() noexcept { return multidim::iterator<T>(data_offset(N), extents_, N); }
+		constexpr typename B::const_iterator begin() const noexcept { return this->cbegin(); }
+		constexpr typename B::iterator begin() noexcept { return multidim::iterator<T>(data(), this->extents_, 0); }
+		constexpr typename B::const_iterator end() const noexcept { return this->cend(); }
+		constexpr typename B::iterator end() noexcept { return multidim::iterator<T>(data_offset(N), this->extents_, N); }
 		constexpr typename B::const_reverse_iterator rbegin() const noexcept { return std::make_reverse_iterator(end()); }
 		constexpr typename B::reverse_iterator rbegin() noexcept { return std::make_reverse_iterator(end()); }
 		constexpr typename B::const_reverse_iterator rend() const noexcept { return std::make_reverse_iterator(begin()); }
@@ -199,55 +219,55 @@ namespace multidim {
 		 * This should not be used for anything apart from reassignment, but is provided for convenience of some algorithms.
 		 * Two value-initialised instances are guaranteed to compare equal with operator==.
 		 */
-		constexpr array_ref() = default;
+		constexpr array_ref() noexcept = default;
 		constexpr array_ref(const array_ref& other) noexcept : B(other.extents_, other.data_) {}
 		constexpr array_ref(const array_const_ref<T, N>& other) noexcept : B(other.extents_, other.data_) {}
 		//constexpr array_ref(array_ref&&) noexcept : B(extents_, data_) {}
 		constexpr array_ref(typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
 		constexpr array_ref& operator=(const array_ref& other) {
-			assert(extents_ == other.extents_);
-			std::copy_n(other.data_, N * extents_.stride(), data_);
+			assert(this->extents_ == other.extents_);
+			std::copy_n(other.data_, N * this->extents_.stride(), this->data_);
 			return *this;
 		}
 		constexpr array_ref& operator=(const array_const_ref<T, N>& other) {
-			assert(extents_ == other.extents_);
-			std::copy_n(other.data_, N * extents_.stride(), data_);
+			assert(this->extents_ == other.extents_);
+			std::copy_n(other.data_, N * this->extents_.stride(), this->data_);
 			return *this;
 		}
 		constexpr array_ref& operator=(array_ref&& other) {
-			assert(extents_ == other.extents_);
-			std::copy_n(std::make_move_iterator(other.data_), N * extents_.stride(), data_);
+			assert(this->extents_ == other.extents_);
+			std::copy_n(std::make_move_iterator(other.data_), N * this->extents_.stride(), this->data_);
 			return *this;
 		}
 
 		friend constexpr void swap(const array_ref& a, const array_ref& b) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
-			assert(extents_ == other.extents_);
+			assert(a.extents_ == b.extents_);
 			std::swap_ranges(a.data_, a.data_ + N * a.extents_.stride(), b.data_);
 		}
 		constexpr void swap(const array_ref& other) const noexcept(std::is_nothrow_swappable_v<typename B::base_element>) { swap(*this, other); }
 
 		constexpr operator array_const_ref<T, N>() const noexcept {
-			return array_const_ref<T, N>{data_, typename B::container_extents_type{ extents_ } };
+			return array_const_ref<T, N>{this->data_, typename B::container_extents_type{ this->extents_ } };
 		}
 
-		constexpr typename B::base_element* data() const noexcept { return to_pointer(data_); }
+		constexpr typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
 	private:
-		friend class B;
-		constexpr typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(data_) + index * extents_.stride(); }
+		friend B;
+		constexpr typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::reference operator[](typename B::size_type index) const noexcept {
 			if constexpr (element_traits<T>::is_inner_container) {
-				return typename B::reference{ data_offset(index), extents_ };
+				return typename B::reference{ data_offset(index), this->extents_ };
 			}
 			else {
-				static_assert(std::is_same_v<element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
+				static_assert(std::is_same_v<typename B::element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
 				return data()[index];
 			}
 		}
 		constexpr typename B::reference at(typename B::size_type index) const noexcept { if (index >= N) throw std::out_of_range("element access index out of range"); else return operator[](index); }
 
-		constexpr typename B::iterator begin() const noexcept { return multidim::iterator<T>(data(), extents_, 0); }
-		constexpr typename B::iterator end() const noexcept { return multidim::iterator<T>(data_offset(N), extents_, N); }
+		constexpr typename B::iterator begin() const noexcept { return multidim::iterator<T>(data(), this->extents_, 0); }
+		constexpr typename B::iterator end() const noexcept { return multidim::iterator<T>(data_offset(N), this->extents_, N); }
 		constexpr typename B::reverse_iterator rbegin() const noexcept { return std::make_reverse_iterator(end()); }
 		constexpr typename B::reverse_iterator rend() const noexcept { return std::make_reverse_iterator(begin()); }
 
@@ -269,9 +289,13 @@ namespace multidim {
 		friend constexpr bool operator!=(const array_ref& a, const array_ref& b) { return !(a == b); };
 
 		/**
+		 * Rebinds this reference to another object.
+		 */
+		constexpr inline void rebind(typename B::base_element* data) noexcept { this->data_ = data; }
+		/**
 		 * Rebinds this reference to another object that is n objects away from the current object.
 		 */
-		constexpr inline void rebind_relative(typename B::difference_type n) noexcept { data_ += n * N * extents_.stride(); }
+		constexpr inline void rebind_relative(typename B::difference_type n) noexcept { this->data_ += n * N * this->extents_.stride(); }
 	};
 
 	template <typename T, size_t N>
@@ -286,29 +310,29 @@ namespace multidim {
 		 * This should not be used for anything apart from reassignment, but is provided for convenience of some algorithms.
 		 * Two value-initialised instances are guaranteed to compare equal with operator==.
 		 */
-		constexpr array_const_ref() = default;
+		constexpr array_const_ref() noexcept = default;
 		constexpr array_const_ref(const array_const_ref& other) noexcept : B(other.extents_, other.data_) {}
 		//constexpr array_const_ref(array_const_ref&&) = default;
 		constexpr array_const_ref(const typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
 
-		constexpr const typename B::base_element* data() const noexcept { return to_pointer(data_); }
+		constexpr const typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
 	private:
-		friend class B;
-		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(data_) + index * extents_.stride(); }
+		friend B;
+		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::const_reference operator[](typename B::size_type index) const noexcept {
 			if constexpr (element_traits<T>::is_inner_container) {
-				return typename B::const_reference{ data_offset(index), extents_ };
+				return typename B::const_reference{ data_offset(index), this->extents_ };
 			}
 			else {
-				static_assert(std::is_same_v<element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
+				static_assert(std::is_same_v<typename B::element_extents_type, unit_extent>, "extents_type must be unit_extent if there is no inner container");
 				return data()[index];
 			}
 		}
 		constexpr typename B::const_reference at(typename B::size_type index) const noexcept { if (index >= N) throw std::out_of_range("element access index out of range"); else return operator[](index); }
 
-		constexpr typename B::const_iterator begin() const noexcept { return cbegin(); }
-		constexpr typename B::const_iterator end() const noexcept { return cend(); }
+		constexpr typename B::const_iterator begin() const noexcept { return this->cbegin(); }
+		constexpr typename B::const_iterator end() const noexcept { return this->cend(); }
 		constexpr typename B::const_reverse_iterator rbegin() const noexcept { return std::make_reverse_iterator(end()); }
 		constexpr typename B::const_reverse_iterator rend() const noexcept { return std::make_reverse_iterator(begin()); }
 
@@ -324,9 +348,13 @@ namespace multidim {
 		friend constexpr bool operator!=(const array_const_ref& a, const array_const_ref& b) { return !(a == b); };
 
 		/**
+		 * Rebinds this reference to another object.
+		 */
+		constexpr inline void rebind(const typename B::base_element* data) noexcept { this->data_ = data; }
+		/**
 		 * Rebinds this reference to another object that is n objects away from the current object.
 		 */
-		constexpr inline void rebind_relative(typename B::difference_type n) noexcept { data_ += n * N * extents_.stride(); }
+		constexpr inline void rebind_relative(typename B::difference_type n) noexcept { this->data_ += n * N * this->extents_.stride(); }
 	};
 
 }
@@ -335,14 +363,17 @@ namespace multidim {
  * Specialisations for std::tuple_size and std::tuple_element
  */
 namespace std {
-	template <typename T>
-	struct tuple_size;
+#if defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmismatched-tags"
+#endif
 	template <typename T, size_t N>
 	struct tuple_size<multidim::array<T, N>> : public std::integral_constant<size_t, N> {};
-	template <size_t I, typename T>
-	struct tuple_element;
 	template <size_t I, typename T, size_t N>
 	struct tuple_element<I, multidim::array<T, N>> {
 		using type = typename multidim::element_traits<T>::value_type;
 	};
+#if defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 }

@@ -25,7 +25,7 @@ namespace multidim {
 		constexpr size_t stride() const noexcept {
 			return 1;
 		}
-		friend bool operator==(const unit_extent& a, const unit_extent& b) noexcept { return true; }
+		friend bool operator==(const unit_extent&, const unit_extent&) noexcept { return true; }
 		friend bool operator!=(const unit_extent& a, const unit_extent& b) noexcept { return !(a == b); }
 	};
 

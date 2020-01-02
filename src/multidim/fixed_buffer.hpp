@@ -8,7 +8,7 @@ namespace multidim {
 	public:
 		constexpr T* data() noexcept { return buf_.data(); }
 		constexpr const T* data() const noexcept { return buf_.data(); }
-		constexpr fixed_buffer() noexcept = default;
+		constexpr fixed_buffer() = default;
 		constexpr fixed_buffer(const std::array<T, N>& buf) noexcept : buf_(buf) {}
 		constexpr fixed_buffer(const fixed_buffer&) noexcept = delete;
 		constexpr fixed_buffer(fixed_buffer&&) noexcept = default;
