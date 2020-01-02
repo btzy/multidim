@@ -28,7 +28,8 @@ TEST_CASE("2D array operator[]", "[2d][array][operator bracket]") {
 }
 
 TEST_CASE("1D array iterator", "[1d][array][iterator]") {
-	multidim::array<int, 4> arr;
+	using arr_t = multidim::array<int, 4>;
+	arr_t arr;
 	arr[0] = 5;
 	arr[1] = 7;
 	arr[2] = 9;
@@ -43,12 +44,12 @@ TEST_CASE("1D array iterator", "[1d][array][iterator]") {
 	}
 	SECTION("const iterator") {
 		std::vector<int> tmp;
-		for (auto x : static_cast<std::add_const_t<decltype(arr)>>(arr)) {
+		for (auto x : static_cast<const arr_t&>(arr)) {
 			tmp.push_back(x);
 		}
 		REQUIRE(tmp == ans);
 	}
-	static_assert(std::is_same_v<decltype(*(static_cast<std::add_const_t<decltype(arr)>>(arr).begin())), const int&>, "constness must be propagated through iterator");
+	static_assert(std::is_same_v<decltype(*(static_cast<const arr_t&>(arr).begin())), const int&>, "constness must be propagated through iterator");
 	SECTION("begin end") {
 		std::vector<int> tmp;
 		for (auto it = arr.begin(); it != arr.end(); ++it) {
@@ -106,7 +107,8 @@ TEST_CASE("1D array iterator", "[1d][array][iterator]") {
 }
 
 TEST_CASE("2D array iterator", "[2d][array][iterator]") {
-	multidim::array<multidim::inner_array<std::pair<int, int>, 6>, 10> arr;
+	using arr_t = multidim::array<multidim::inner_array<std::pair<int, int>, 6>, 10>;
+	arr_t arr;
 	std::vector<std::pair<int, int>> ans;
 	for (int i = 0; i < 10; ++i) {
 		for (int j = 0; j < 6; ++j) {
@@ -130,7 +132,7 @@ TEST_CASE("2D array iterator", "[2d][array][iterator]") {
 	}
 	SECTION("const iterator") {
 		std::vector<std::pair<int, int>> tmp;
-		for (auto x : static_cast<std::add_const_t<decltype(arr)>>(arr)) {
+		for (auto x : static_cast<const arr_t&>(arr)) {
 			for (auto y : x) {
 				tmp.push_back(y);
 			}
@@ -228,6 +230,12 @@ TEST_CASE("2D array zero length subarray", "[2d][array][iterator]") {
 		}
 		REQUIRE(begin == end);
 	}
+	REQUIRE(arr.size() == 10);
+	REQUIRE(arr.max_size() == 10);
+	REQUIRE(!arr.empty());
+	REQUIRE(arr[0].size() == 0);
+	REQUIRE(arr[0].max_size() == 0);
+	REQUIRE(arr[0].empty());
 }
 
 TEST_CASE("2D array <0,0> special case", "[2d][array][iterator]") {
@@ -235,6 +243,9 @@ TEST_CASE("2D array <0,0> special case", "[2d][array][iterator]") {
 	auto begin = arr.begin();
 	auto end = arr.end();
 	REQUIRE(begin == end);
+	REQUIRE(arr.size() == 0);
+	REQUIRE(arr.max_size() == 0);
+	REQUIRE(arr.empty());
 }
 
 TEST_CASE("2D array <10,0> special case", "[2d][array][iterator]") {
@@ -242,5 +253,61 @@ TEST_CASE("2D array <10,0> special case", "[2d][array][iterator]") {
 	auto begin = arr.begin();
 	auto end = arr.end();
 	REQUIRE(begin == end);
+	REQUIRE(arr.size() == 0);
+	REQUIRE(arr.max_size() == 0);
+	REQUIRE(arr.empty());
 }
 
+TEST_CASE("copying and moving array", "[2d][array][copy][move]") {
+	using arr_t = multidim::array<multidim::inner_array<std::pair<int, int>, 6>, 10>;
+	arr_t arr, other;
+	for (int i = 0; i < 10; ++i) {
+		for (int j = 0; j < 6; ++j) {
+			const int ii = i + 1;
+			const int jj = j + 1;
+			arr[i][j] = std::make_pair(ii * ii, jj * jj);
+			other[i][j] = std::make_pair(ii, jj);
+		}
+	}
+	REQUIRE(arr != other);
+	arr_t arr2 = arr;
+	REQUIRE(arr2[2][3] == std::make_pair(9, 16));
+	REQUIRE(arr == arr2);
+	arr_t arr3 = std::move(arr);
+	REQUIRE(arr2 == arr3);
+	REQUIRE(arr == arr2); // moving a fixed_buffer won't change it
+	arr_t other2 = other;
+	REQUIRE(other2 == other);
+	swap(other2, arr2); // ADL swap
+	REQUIRE(other2 != arr2);
+	REQUIRE(other != other2);
+	REQUIRE(arr == other2);
+	REQUIRE(other == arr2);
+}
+
+TEST_CASE("2d fill array", "[2d][array][fill]") {
+	using arr_t = multidim::array<multidim::inner_array<int, 6>, 10>;
+	arr_t arr, other;
+	for (int i = 0; i < 10; ++i) {
+		for (int j = 0; j < 6; ++j) {
+			const int ii = i + 1;
+			const int jj = j + 1;
+			arr[i][j] = 42 + j;
+		}
+	}
+	using row_t = multidim::array<int, 6>;
+	row_t row;
+	for (int j = 0; j < 6; ++j) {
+		row[j] = 42 + j;
+	}
+	other.fill(row);
+	REQUIRE(other == arr);
+	other[1].fill(6);
+	for (int j = 0; j < 6; ++j) {
+		arr[1][j] = 6;
+	}
+	REQUIRE(other[1] == arr[1]);
+	REQUIRE(other == arr);
+	REQUIRE(other[1] != other[0]);
+	REQUIRE(other[1] != other[2]);
+}
