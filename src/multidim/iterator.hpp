@@ -1,5 +1,8 @@
 #pragma once
 
+#if __has_include(<compare>)
+#include <compare>
+#endif
 #include <iterator>
 #include <type_traits>
 

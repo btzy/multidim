@@ -1,0 +1,58 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+pr:
+- master
+
+jobs:
+- job: windows
+  displayName: 'Windows'
+  pool:
+    vmImage: 'windows-2019'
+  variables:
+    CXX_FLAGS: '/EHsc /permissive-'
+
+  strategy:
+    matrix:
+      Win32:
+        BuildPlatform: 'Win32'
+        VCVARSARG: x86
+        EXTRA_CXX_FLAGS: '/std:c++17'
+      Win64:
+        BuildPlatform: 'x64'
+        VCVARSARG: amd64
+        EXTRA_CXX_FLAGS: '/std:c++17'
+      Win64-cpp20:
+        BuildPlatform: 'x64'
+        VCVARSARG: amd64
+        EXTRA_CXX_FLAGS: '/std:c++latest'
+
+  steps:
+  - checkout: self
+    fetchDepth: 1
+
+  - script: |
+      curl -L -O "https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-win.zip"
+    displayName: 'Set up env'
+
+  - task: ExtractFiles@1
+    inputs:
+      archiveFilePatterns: 'ninja-win.zip'
+      destinationFolder: build
+    displayName: 'Extract ninja executable'
+
+  - script: |
+      call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" $(VCVARSARG)
+      set PATH=%CD%\build;%PATH%
+      cmake -H. -Bbuild_win -DCMAKE_BUILD_TYPE=Release -GNinja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCXX_OVERRIDE_STANDARD=1 -DCMAKE_CXX_FLAGS="$(CXX_FLAGS) $(EXTRA_CXX_FLAGS)"
+      build\ninja -C build_win
+    displayName: 'Build'
+
+  - script: |
+      set CTEST_OUTPUT_ON_FAILURE=1
+      build\ninja -C build_win test
+    displayName: 'Test'
