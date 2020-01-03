@@ -9,6 +9,9 @@ namespace multidim {
 
 	struct inner_container_base {};
 
+	/**
+	 * Inherit from this class to define an inner container type (e.g. inner_array or inner_dynarray).
+	 */
 	template <typename Container, typename Ref, typename ConstRef>
 	struct enable_inner_container : public inner_container_base {
 		using container_type = Container;
@@ -20,8 +23,14 @@ namespace multidim {
 
 
 
+	/**
+	 * Represents the extent of a base element type.  This class has no members, and any two instances of this class compare equal to each other.
+	 */
 	class unit_extent {
 	public:
+		/**
+		 * Gets the number of base elements represented in this extent.  For unit_extent, this is always equal to 1.
+		 */
 		constexpr size_t stride() const noexcept {
 			return 1;
 		}
@@ -31,6 +40,11 @@ namespace multidim {
 
 
 
+	/**
+	 * Adds a dimension to the buffer.
+	 * If Container is a fixed_buffer, this produces a fixed_buffer that is M times larger.
+	 * If Container is a dynamic_buffer, this produces a dynamic_buffer.
+	 */
 	template <typename Container, size_t M>
 	struct add_dim_to_buffer;
 
@@ -39,11 +53,19 @@ namespace multidim {
 		using type = fixed_buffer<T, N * M>;
 	};
 
+	/**
+	 * Convenience typedef for add_dim_to_buffer.
+	 */
 	template <typename Container, size_t M>
 	using add_dim_to_buffer_t = typename add_dim_to_buffer<Container, M>::type;
 
 
 
+	/**
+	 * Gets the traits of a given type, for use as elements in a container.
+	 * If T is not an inner container, then the member typedefs are like those in standard library containers.
+	 * If T is an inner container, then reference and const_reference will not be real reference types, and value_type and pointer and const_pointer will be void.
+	 */
 	template <typename T, typename = void>
 	struct element_traits {
 		using value_type = T;
@@ -71,12 +93,19 @@ namespace multidim {
 
 
 
-	template <typename T/*, typename = std::void_t<decltype(std::declval<T>().data())>*/>
-	constexpr inline decltype(std::declval<T>().data())/*typename std::decay_t<T>::pointer*/ to_pointer(T&& t) noexcept {
+	/**
+	 * Converts a possibly owning buffer to a pointer.
+	 * If t is a pointer, then t is returned.
+	 * If t.data() is well-formed, then t.data() is returned.
+	 * Otherwise, to_pointer(t) is ill-formed.
+	 * @param t the buffer
+	 */
+	template <typename T>
+	constexpr inline decltype(std::declval<T>().data()) to_pointer(T&& t) noexcept {
 		return std::forward<T>(t).data();
 	}
 	template <typename T, typename = std::enable_if_t<std::is_pointer_v<std::decay_t<T>>>>
-	constexpr inline T/*std::decay_t<T>*/ to_pointer(T&& t) noexcept {
+	constexpr inline T to_pointer(T&& t) noexcept {
 		return std::forward<T>(t);
 	}
 }

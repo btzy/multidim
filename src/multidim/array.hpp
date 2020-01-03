@@ -17,24 +17,47 @@ namespace multidim {
 	template <typename T, size_t N>
 	class array_const_ref;
 
+	/**
+	 * A tag type to specify nested arrays except the topmost one.
+	 */
 	template <typename T, size_t N>
 	struct inner_array : public enable_inner_container<array<T, N>, array_ref<T, N>, array_const_ref<T, N>> {};
 
 
 
+	/**
+	 * An extent that is known at compilation time.  This class is immutable unless reassigned using operator=.
+	 * @tparam E the extent of the next inner dimension (it will be unit_extent if there are no more inner dimensions)
+	 * @tparam N the size of this dimension
+	 */
 	template <typename E, size_t N>
 	class static_extent {
 	public:
+		/**
+		 * Gets the number of base elements represented in this extent.  For static_extent, this is always equal to N times of the stride of the inner extent.
+		 */
 		constexpr size_t stride() const noexcept {
 			return N * element_extent_.stride();
 		}
+		/**
+		 * Gets the number of elements (not necessarily base elements) represented in this extent.  For static_extent, this is always equal to N.
+		 */
 		constexpr size_t top_extent() const noexcept {
 			return N;
 		}
+		/**
+		 * Gets a reference to the inner extent.
+		 */
 		constexpr const E& inner() const noexcept {
 			return element_extent_;
 		}
+		/**
+		 * Trait to detect whether this extent is dynamic, for static_extent this is false.
+		 */
 		constexpr static bool is_dynamic = false;
+		/**
+		 * Constructs a static_extent.  All parameters are forwarded to the inner extent.
+		 */
 		template <typename... TNs>
 		constexpr explicit static_extent(TNs... ns) noexcept : element_extent_(ns...) {}
 		friend bool operator==(const static_extent& a, const static_extent& b) noexcept { return a.element_extent_ == b.element_extent_; }
@@ -53,6 +76,9 @@ namespace multidim {
 
 
 
+	/**
+	 * Base class for array.  This is an internal library implementation and should not be used directly by users. 
+	 */
 	template <typename Array, typename T, size_t N, bool Owning, bool IsConst>
 	class array_base {
 	public:
@@ -88,12 +114,18 @@ namespace multidim {
 		constexpr array_base& operator=(const array_base&) = delete;
 		// no move constructor or move assignment operator, derived classes should use the first constructor of array_base to do it.
 
+		/**
+		 * Swaps the content of this array with another one.
+		 */
 		constexpr void swap(array_base& other) noexcept {
 			using std::swap;
 			swap(data_, other.data_);
 			swap(extents_, other.extents_);
 		}
 
+		/**
+		 * Gets the extents of elements that are stored in this array.
+		 */
 		constexpr const element_extents_type& extents() const noexcept { return extents_; }
 
 		underlying_store data_;
@@ -107,6 +139,11 @@ namespace multidim {
 #endif
 	};
 
+	/**
+	 * Represents a multidimensional array whose outermost dimension is an array with a size that is fixed at compilation time.
+	 * @tparam T the element type; if this is the innermost dimension then T is the base element type, otherwise T is an inner container (i.e. something that extends from enable_inner_container)
+	 * @tparam N the number of elements in this array
+	 */
 	template <typename T, size_t N>
 	class array : public array_base<array<T, N>, T, N, true, false> {
 	public:
@@ -115,6 +152,10 @@ namespace multidim {
 		constexpr array(array&& other) noexcept: B(other.extents_, std::move(other.data_)) {
 			other.extents_ = typename B::element_extents_type();
 		}
+		/**
+		 * Constructs an array from the given dimensions.
+		 * Note: Dimensions are only specified for dynarray layers.  Compile-time fixed arrays do not need a dimension parameter.
+		 */
 		template <typename... TNs, typename = std::enable_if_t<std::conjunction_v<std::is_convertible<size_t, TNs>...>>>
 		constexpr explicit array(TNs... ns) noexcept : B(typename B::element_extents_type(ns...)) {}
 		constexpr array& operator=(const array& other) noexcept {
@@ -127,34 +168,49 @@ namespace multidim {
 			other.extents_ = typename B::element_extents_type();
 		};
 
+		/**
+		 * Swaps two arrays.  This will invalidate references to the the arrays if any inner array is an inner_dynarray (in practice, any references for one array will now refer to something in the other array).
+		 */
 		friend constexpr void swap(array& a, array& b) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
 			a.swap(b);
 		}
+		/**
+		 * Swaps this array with another one.  This will invalidate references to the the arrays if any inner array is an inner_dynarray (in practice, any references for one array will now refer to something in the other array).
+		 */
 		constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
 			B::swap(other);
 		}
 
 
 		/**
-		 * Converting to array_ref.
+		 * Converting operator to array_ref.
 		 */
 		constexpr operator array_ref<T, N>() noexcept {
 			return array_ref<T, N>{ this->data_.data(), typename B::container_extents_type{ this->extents_ } };
 		}
 		/**
-		 * Converting to array_const_ref.
+		 * Converting operator to array_const_ref.
 		 */
 		constexpr operator array_const_ref<T, N>() const noexcept {
 			return array_const_ref<T, N>{ this->data_.data(), typename B::container_extents_type{ this->extents_ } };
 		}
 
+		/**
+		 * Gets a pointer to the underlying base elements.
+		 */
 		constexpr typename B::base_element* data() noexcept { return to_pointer(this->data_); }
 		constexpr const typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
 	private:
 		friend B;
+		/**
+		 * Gets a pointer to the underlying base elements, offsetted by some index.
+		 */
 		constexpr typename B::base_element* data_offset(typename B::size_type index) noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
 		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
+		/**
+		 * Gets a reference to the element at the specified index.
+		 */
 		constexpr typename B::reference operator[](typename B::size_type index) noexcept {
 			if constexpr (element_traits<T>::is_inner_container) {
 				return typename B::reference{ data_offset(index), this->extents_ };
@@ -208,6 +264,12 @@ namespace multidim {
 		// Note: We don't provide lexicographical comparison because it isn't clear what it means to compare arrays of different shape.
 	};
 
+	/**
+	 * Represents a reference to a (slice of a) multidimensional array whose outermost dimension is an array with a size that is fixed at compilation time.
+	 * Note: This type has the semantics of a reference type:  Copy/move construction will construct an array_ref that refers to the same data as the other one.  Copy/move assignment will copy/move the other data to the place that the current array_ref refers to.
+	 * @tparam T the element type; if this is the innermost dimension then T is the base element type, otherwise T is an inner container (i.e. something that extends from enable_inner_container)
+	 * @tparam N the number of elements in this array
+	 */
 	template <typename T, size_t N>
 	class array_ref : public array_base<array_ref<T, N>, T, N, false, false> {
 	private:
@@ -220,9 +282,15 @@ namespace multidim {
 		 * Two value-initialised instances are guaranteed to compare equal with operator==.
 		 */
 		constexpr array_ref() noexcept = default;
+		/**
+		 * Copy-constructs an array_ref.  The new array_ref refers to the same data as the old one.
+		 */
 		constexpr array_ref(const array_ref& other) noexcept : B(other.extents_, other.data_) {}
-		constexpr array_ref(const array_const_ref<T, N>& other) noexcept : B(other.extents_, other.data_) {}
 		//constexpr array_ref(array_ref&&) noexcept : B(extents_, data_) {}
+		/**
+		 * Constructs an array_ref from the given data and container extents.
+		 * Users should not need to use this function unless they have acquired the data from an external source.
+		 */
 		constexpr array_ref(typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
 		constexpr array_ref& operator=(const array_ref& other) {
 			assert(this->extents_ == other.extents_);
@@ -240,12 +308,25 @@ namespace multidim {
 			return *this;
 		}
 
+		/**
+		 * Swaps the content of two array_refs.
+		 * This does an element-wise swap of the data that these array_refs refer to.
+		 * If the two arrays do not have the same extents, then behaviour is undefined.
+		 */
 		friend constexpr void swap(const array_ref& a, const array_ref& b) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
 			assert(a.extents_ == b.extents_);
 			std::swap_ranges(a.data_, a.data_ + N * a.extents_.stride(), b.data_);
 		}
+		/**
+		 * Swaps the content of this array_ref with another one.
+		 * This does an element-wise swap of the data that these array_refs refer to.
+		 * If the two arrays do not have the same extents, then behaviour is undefined.
+		 */
 		constexpr void swap(const array_ref& other) const noexcept(std::is_nothrow_swappable_v<typename B::base_element>) { swap(*this, other); }
 
+		/**
+		 * Converting operator to array_const_ref
+		 */
 		constexpr operator array_const_ref<T, N>() const noexcept {
 			return array_const_ref<T, N>{this->data_, typename B::container_extents_type{ this->extents_ } };
 		}
@@ -287,6 +368,8 @@ namespace multidim {
 			return a.extents_ == b.extents_ && std::equal(a.data(), a.data_offset(N), b.data());
 		}
 		friend constexpr bool operator!=(const array_ref& a, const array_ref& b) { return !(a == b); };
+
+		constexpr operator array_const_ref<T, N>() noexcept { return array_const_ref<T, N>{ this->data_, typename B::container_extents_type{ this->extents_ } }; }
 
 		/**
 		 * Rebinds this reference to another object.

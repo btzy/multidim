@@ -15,6 +15,9 @@ namespace std {
 
 namespace multidim {
 
+	/**
+	 * Checks whether T is a complete type.
+	 */
 	template <typename T, typename = void>
 	struct is_complete : public std::false_type {};
 	template <typename T>

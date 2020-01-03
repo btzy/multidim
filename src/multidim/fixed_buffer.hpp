@@ -3,6 +3,10 @@
 #include <array>
 
 namespace multidim {
+	/**
+	 * Class that represents a buffer whose size is known at compilation time, like a std::array.
+	 * This class is a simple RAII class that owns its buffer.
+	 */
 	template <typename T, size_t N>
 	class fixed_buffer {
 	public:
