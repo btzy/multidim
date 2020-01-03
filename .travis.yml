@@ -2,7 +2,7 @@ language: cpp
 
 env:
   global:
-    - CXX_FLAGS="-Wall -Wextra -pedantic"
+    - CXX_FLAGS="-Wall -Wextra -Werror -pedantic"
 
 matrix:
   include:
