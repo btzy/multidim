@@ -1,6 +1,6 @@
 # Multidim
 
-[![Build Status](https://travis-ci.org/btzy/multidim.svg?branch=master)](https://travis-ci.org/btzy/multidim)
+[![Build Status](https://travis-ci.org/btzy/multidim.svg?branch=master)](https://travis-ci.org/btzy/multidim) [![Build Status](https://btzy.visualstudio.com/Multidim/_apis/build/status/btzy.multidim?branchName=master)](https://btzy.visualstudio.com/Multidim/_build/latest?definitionId=1&branchName=master)
 
 Modern C++ library for multidimensional arrays, dynarrays, and vectors (with provisions for deques and other containers).
 
