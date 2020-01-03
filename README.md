@@ -1,5 +1,7 @@
 # Multidim
 
+[![Build Status](https://travis-ci.org/btzy/multidim.svg?branch=master)](https://travis-ci.org/btzy/multidim)
+
 Modern C++ library for multidimensional arrays, dynarrays, and vectors (with provisions for deques and other containers).
 
 Works with C++17, better with C++20.
