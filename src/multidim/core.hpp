@@ -4,6 +4,15 @@
 #include <utility> // for std::declval()
 
 #include "fixed_buffer.hpp"
+#include "dynamic_buffer.hpp"
+
+#if defined(__GNUC__)
+#define MULTIDIM_FORCEINLINE __attribute__((always_inline))
+#elif defined(_MSC_VER)
+#define MULTIDIM_FORCEINLINE __forceinline
+#else
+#define MULTIDIM_FORCEINLINE 
+#endif
 
 namespace multidim {
 
@@ -51,6 +60,11 @@ namespace multidim {
 	template <typename T, size_t N, size_t M>
 	struct add_dim_to_buffer<fixed_buffer<T, N>, M> {
 		using type = fixed_buffer<T, N * M>;
+	};
+
+	template <typename T, size_t M>
+	struct add_dim_to_buffer<dynamic_buffer<T>, M> {
+		using type = dynamic_buffer<T>;
 	};
 
 	/**

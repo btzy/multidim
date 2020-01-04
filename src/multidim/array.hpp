@@ -58,8 +58,9 @@ namespace multidim {
 		/**
 		 * Constructs a static_extent.  All parameters are forwarded to the inner extent.
 		 */
-		template <typename... TNs>
+		template <typename... TNs, typename = std::enable_if_t<std::conjunction_v<std::is_convertible<size_t, TNs>...>>>
 		constexpr explicit static_extent(TNs... ns) noexcept : element_extent_(ns...) {}
+		constexpr explicit static_extent(const E& element_extent) noexcept : element_extent_(element_extent) {}
 		friend bool operator==(const static_extent& a, const static_extent& b) noexcept { return a.element_extent_ == b.element_extent_; }
 		friend bool operator!=(const static_extent& a, const static_extent& b) noexcept { return !(a == b); }
 
@@ -67,10 +68,15 @@ namespace multidim {
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wattributes"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4848)
 #endif
 		[[no_unique_address]] E element_extent_;
 #if defined(__GNUC__)
 #pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
 #endif
 	};
 
@@ -132,10 +138,15 @@ namespace multidim {
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wattributes"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4848)
 #endif
 		[[no_unique_address]] element_extents_type extents_;
 #if defined(__GNUC__)
 #pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
 #endif
 	};
 
@@ -149,35 +160,41 @@ namespace multidim {
 	public:
 		using B = array_base<array<T, N>, T, N, true, false>;
 		constexpr array(const array& other) : B(other.extents_, other.data_.clone(N * other.extents_.stride())) {}
-		constexpr array(array&& other) noexcept: B(other.extents_, std::move(other.data_)) {
+		constexpr array(array&& other) noexcept(std::is_nothrow_move_constructible_v<typename B::buffer_type>) : B(other.extents_, std::move(other.data_)) {
 			other.extents_ = typename B::element_extents_type();
 		}
+		/**
+		 * Constructs an array from the given element_extents_type.  This should not generally be used directly.
+		 */
+		constexpr explicit array(const typename B::element_extents_type& extents) noexcept : B(extents, N * extents.stride()) {}
 		/**
 		 * Constructs an array from the given dimensions.
 		 * Note: Dimensions are only specified for dynarray layers.  Compile-time fixed arrays do not need a dimension parameter.
 		 */
 		template <typename... TNs, typename = std::enable_if_t<std::conjunction_v<std::is_convertible<size_t, TNs>...>>>
-		constexpr explicit array(TNs... ns) noexcept : B(typename B::element_extents_type(ns...)) {}
-		constexpr array& operator=(const array& other) noexcept {
+		constexpr explicit array(TNs... ns) noexcept : array(typename B::element_extents_type(ns...)) {}
+		constexpr array& operator=(const array& other) {
 			this->extents_ = other.extents_;
 			this->data_ = other.data_.clone(N * other.extents_.stride());
+			return *this;
 		}
-		constexpr array& operator=(array&& other) noexcept {
+		constexpr array& operator=(array&& other) noexcept(std::is_nothrow_move_assignable_v<typename B::buffer_type>) {
 			this->extents_ = other.extents_;
 			this->data_ = std::move(other.data_); // will reset other.data_
 			other.extents_ = typename B::element_extents_type();
+			return *this;
 		};
 
 		/**
-		 * Swaps two arrays.  This will invalidate references to the the arrays if any inner array is an inner_dynarray (in practice, any references for one array will now refer to something in the other array).
+		 * Swaps two arrays.  This will invalidate references to the arrays if any inner array is an inner_dynarray (in practice, any existing references for one array will now refer to something in the other array).  If all inner arrays have compile-time fixed size, then this function does an element-wise swap.
 		 */
-		friend constexpr void swap(array& a, array& b) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
+		friend constexpr void swap(array& a, array& b) noexcept(std::is_nothrow_swappable_v<typename B::buffer_type>) {
 			a.swap(b);
 		}
 		/**
-		 * Swaps this array with another one.  This will invalidate references to the the arrays if any inner array is an inner_dynarray (in practice, any references for one array will now refer to something in the other array).
+		 * Swaps this array with another one.  This will invalidate references to the the arrays if any inner array is an inner_dynarray (in practice, any references for one array will now refer to something in the other array).  If all inner arrays have compile-time fixed size, then this function does an element-wise swap.
 		 */
-		constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<typename B::base_element>) {
+		constexpr void swap(array& other) noexcept(std::is_nothrow_swappable_v<typename B::buffer_type>) {
 			B::swap(other);
 		}
 
@@ -212,6 +229,7 @@ namespace multidim {
 		 * Gets a reference to the element at the specified index.
 		 */
 		constexpr typename B::reference operator[](typename B::size_type index) noexcept {
+			assert(index < N);
 			if constexpr (element_traits<T>::is_inner_container) {
 				return typename B::reference{ data_offset(index), this->extents_ };
 			}
@@ -221,6 +239,7 @@ namespace multidim {
 			}
 		}
 		constexpr typename B::const_reference operator[](typename B::size_type index) const noexcept {
+			assert(index < N);
 			if constexpr (element_traits<T>::is_inner_container) {
 				return typename B::const_reference{ data_offset(index), this->extents_ };
 			}
@@ -247,9 +266,9 @@ namespace multidim {
 		constexpr typename B::const_reference back() const noexcept { return operator[](N - 1); }
 
 		template <typename B::size_type I>
-		friend constexpr typename B::reference get(array& arr) noexcept { return arr[I]; }
+		friend constexpr typename B::reference get(array& arr) noexcept { static_assert(I < N, "index out of bounds"); return arr[I]; }
 		template <typename B::size_type I>
-		friend constexpr typename B::const_reference get(const array& arr) noexcept { return arr[I]; }
+		friend constexpr typename B::const_reference get(const array& arr) noexcept { static_assert(I < N, "index out of bounds");  return arr[I]; }
 
 		constexpr void fill(typename B::const_reference value) noexcept(std::is_nothrow_assignable_v<typename B::reference, typename B::const_reference>) {
 			for (typename B::reference x : *this) {
@@ -257,10 +276,13 @@ namespace multidim {
 			}
 		}
 
-		friend constexpr bool operator==(const array& a, const array& b) {
-			return a.extents_ == b.extents_ && std::equal(a.data(), a.data_offset(N), b.data());
+		/**
+		 * Compares if two dynarrays are elementwise equal.  If they have different shape or different number of elements, then it will also return false.
+		 */
+		friend constexpr MULTIDIM_FORCEINLINE bool operator==(const array& a, const array_const_ref<T, N>& b) {
+			return static_cast<array_const_ref<T, N>>(a) == b;
 		}
-		friend constexpr bool operator!=(const array& a, const array& b) { return !(a == b); };
+		friend constexpr MULTIDIM_FORCEINLINE bool operator!=(const array& a, const array_const_ref<T, N>& b) { return !(a == b); };
 		// Note: We don't provide lexicographical comparison because it isn't clear what it means to compare arrays of different shape.
 	};
 
@@ -292,21 +314,26 @@ namespace multidim {
 		 * Users should not need to use this function unless they have acquired the data from an external source.
 		 */
 		constexpr array_ref(typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
-		constexpr array_ref& operator=(const array_ref& other) {
+		/**
+		 * Copies the data from another array_ref to this one.
+		 * This does an element-wise copy of the data that these array_refs refer to.
+		 * If the two arrays do not have the same extents, then behaviour is undefined.
+		 * Note: The overloads for const array_ref& is necessary otherwise an implicitly defined one will be generated that does something different.  But since we define this, we have to define one for const array& as well, otherwise three would be overload resolution ambiguities.
+		 * Note: There might be pessimisation here, because extents are copied when we static_cast the refs.
+		 */
+		constexpr array_ref& operator=(const array<T, N>& other) noexcept(std::is_nothrow_copy_assignable_v<typename B::base_element>) { return *this = static_cast<array_const_ref<T, N>>(other); }
+		constexpr array_ref& operator=(const array_ref& other) noexcept(std::is_nothrow_copy_assignable_v<typename B::base_element>) { return *this = static_cast<array_const_ref<T, N>>(other); }
+		constexpr array_ref& operator=(const array_const_ref<T, N>& other) noexcept(std::is_nothrow_copy_assignable_v<typename B::base_element>) {
 			assert(this->extents_ == other.extents_);
 			std::copy_n(other.data_, N * this->extents_.stride(), this->data_);
 			return *this;
 		}
-		constexpr array_ref& operator=(const array_const_ref<T, N>& other) {
-			assert(this->extents_ == other.extents_);
-			std::copy_n(other.data_, N * this->extents_.stride(), this->data_);
-			return *this;
-		}
-		constexpr array_ref& operator=(array_ref&& other) {
+		// Moving from array_ref disabled for now, pending design review.  We may need an array_move_ref class instead.
+		/*constexpr array_ref& operator=(array_ref&& other) noexcept(std::is_nothrow_move_assignable_v<typename B::base_element>) {
 			assert(this->extents_ == other.extents_);
 			std::copy_n(std::make_move_iterator(other.data_), N * this->extents_.stride(), this->data_);
 			return *this;
-		}
+		}*/
 
 		/**
 		 * Swaps the content of two array_refs.
@@ -337,6 +364,7 @@ namespace multidim {
 		constexpr typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::reference operator[](typename B::size_type index) const noexcept {
+			assert(index < N);
 			if constexpr (element_traits<T>::is_inner_container) {
 				return typename B::reference{ data_offset(index), this->extents_ };
 			}
@@ -356,7 +384,7 @@ namespace multidim {
 		constexpr typename B::reference back() const noexcept { return operator[](N - 1); }
 
 		template <typename B::size_type I>
-		friend constexpr typename B::reference get(const array_ref& arr) noexcept { return arr[I]; }
+		friend constexpr typename B::reference get(const array_ref& arr) noexcept { static_assert(I < N, "index out of bounds"); return arr[I]; }
 
 		constexpr void fill(typename B::const_reference value) noexcept(std::is_nothrow_assignable_v<typename B::reference, typename B::const_reference>) {
 			for (typename B::reference x : *this) {
@@ -364,13 +392,23 @@ namespace multidim {
 			}
 		}
 
-		friend constexpr bool operator==(const array_ref& a, const array_ref& b) {
-			return a.extents_ == b.extents_ && std::equal(a.data(), a.data_offset(N), b.data());
+		/**
+		 * Compares if two array_refs are elementwise equal.  If they have different shape or different number of elements, then it will also return false.
+		 */
+		friend constexpr MULTIDIM_FORCEINLINE bool operator==(const array_ref& a, const array_const_ref<T, N>& b) {
+			return static_cast<array_const_ref<T, N>>(a) == b;
 		}
-		friend constexpr bool operator!=(const array_ref& a, const array_ref& b) { return !(a == b); };
+		friend constexpr MULTIDIM_FORCEINLINE bool operator!=(const array_ref& a, const array_const_ref<T, N>& b) { return !(a == b); };
 
 		constexpr operator array_const_ref<T, N>() noexcept { return array_const_ref<T, N>{ this->data_, typename B::container_extents_type{ this->extents_ } }; }
 
+		/**
+		 * Rebinds this reference to another array_ref.
+		 */
+		constexpr inline void rebind(const array_ref& other) noexcept {
+			this->data_ = other.data_;
+			this->extents_ = other.extents_;
+		}
 		/**
 		 * Rebinds this reference to another object.
 		 */
@@ -404,6 +442,7 @@ namespace multidim {
 		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::const_reference operator[](typename B::size_type index) const noexcept {
+			assert(index < N);
 			if constexpr (element_traits<T>::is_inner_container) {
 				return typename B::const_reference{ data_offset(index), this->extents_ };
 			}
@@ -423,13 +462,23 @@ namespace multidim {
 		constexpr typename B::const_reference back() const noexcept { return operator[](N - 1); }
 
 		template <typename B::size_type I>
-		friend constexpr typename B::const_reference get(const array_const_ref& arr) noexcept { return arr[I]; }
+		friend constexpr typename B::const_reference get(const array_const_ref& arr) noexcept { static_assert(I < N, "index out of bounds"); return arr[I]; }
 
+		/**
+		 * Compares if two array_const_refs are elementwise equal.  If they have different shape or different number of elements, then it will also return false.
+		 */
 		friend constexpr bool operator==(const array_const_ref& a, const array_const_ref& b) {
 			return a.extents_ == b.extents_ && std::equal(a.data(), a.data_offset(N), b.data());
 		}
-		friend constexpr bool operator!=(const array_const_ref& a, const array_const_ref& b) { return !(a == b); };
+		friend constexpr MULTIDIM_FORCEINLINE bool operator!=(const array_const_ref& a, const array_const_ref& b) { return !(a == b); };
 
+		/**
+		 * Rebinds this reference to another array_const_ref.
+		 */
+		constexpr inline void rebind(const array_const_ref& other) noexcept {
+			this->data_ = other.data_;
+			this->extents_ = other.extents_;
+		}
 		/**
 		 * Rebinds this reference to another object.
 		 */

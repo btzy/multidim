@@ -1,6 +1,10 @@
 add_executable(unit_test
 	main.cpp
 	catch.hpp
+
+	array.cpp
+	dynarray.cpp
+	mixed.cpp
 )
 
 if(NOT CXX_OVERRIDE_STANDARD)
