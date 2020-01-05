@@ -207,6 +207,17 @@ namespace multidim {
 			B::swap(other);
 		}
 
+		/**
+		 * Assign to this container some data starting from the given iterator.  The number of elements copied is determined by the size of this container.  Behaviour is undefined if there are not enough elements starting from the given iterator.
+		 */
+		template <typename InputIt>
+		constexpr void assign(InputIt first) {
+			for (auto it = this->begin(); it != this->end(); ++it) {
+				*it = *first;
+				++first;
+			}
+		}
+
 
 		/**
 		 * Converting operator to dynarray_ref.
@@ -354,6 +365,17 @@ namespace multidim {
 		 * If the two arrays do not have the same extents, then behaviour is undefined.
 		 */
 		constexpr void swap(const dynarray_ref& other) const noexcept(std::is_nothrow_swappable_v<typename B::base_element>) { swap(*this, other); }
+
+		/**
+		 * Assign to this container some data starting from the given iterator.  The number of elements copied is determined by the size of this container.  Behaviour is undefined if there are not enough elements starting from the given iterator.
+		 */
+		template <typename InputIt>
+		constexpr void assign(InputIt first) {
+			for (auto it = this->begin(); it != this->end(); ++it) {
+				*it = *first;
+				++first;
+			}
+		}
 
 		/**
 		 * Converting operator to dynarray_const_ref
