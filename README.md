@@ -94,7 +94,11 @@ Note about dynarrays:  A dynarray is an array with size known at _construction_ 
 
 TODO
 
-## What will not work
+## Documentation
+
+See the [Multidim documentation](https://btzy.github.io/multidim/) to learn more about Multidim.
+
+## Gotchas
 
 ```cpp
 multidim::dynarray<multidim::inner_dynarray<int>> arr2d(3, 4);

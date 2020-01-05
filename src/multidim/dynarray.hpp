@@ -235,15 +235,15 @@ namespace multidim {
 		/**
 		 * Gets a pointer to the underlying base elements.
 		 */
-		constexpr typename B::base_element* data() noexcept { return to_pointer(this->data_); }
-		constexpr const typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
+		constexpr typename B::base_element* data() noexcept { return multidim::to_pointer(this->data_); }
+		constexpr const typename B::base_element* data() const noexcept { return multidim::to_pointer(this->data_); }
 	private:
 		friend B;
 		/**
 		 * Gets a pointer to the underlying base elements, offsetted by some index.  It is undefined behaviour if index > size().  If index == size() then this function is value, but the returned pointer may not be dereferenced.
 		 */
-		constexpr typename B::base_element* data_offset(typename B::size_type index) noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
-		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr typename B::base_element* data_offset(typename B::size_type index) noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		/**
 		 * Gets a reference to the element at the specified index.  It is undefined behaviour if index >= size().
@@ -384,10 +384,10 @@ namespace multidim {
 			return dynarray_const_ref<T>{this->data_, typename B::container_extents_type{ this->size_, this->extents_ } };
 		}
 
-		constexpr typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
+		constexpr typename B::base_element* data() const noexcept { return multidim::to_pointer(this->data_); }
 	private:
 		friend B;
-		constexpr typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr typename B::base_element* data_offset(typename B::size_type index) const noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::reference operator[](typename B::size_type index) const noexcept {
 			assert(index < this->size_);
@@ -460,10 +460,10 @@ namespace multidim {
 		//constexpr array_const_ref(array_const_ref&&) = default;
 		constexpr dynarray_const_ref(const typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.top_extent(), extents.inner(), data) {}
 
-		constexpr const typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
+		constexpr const typename B::base_element* data() const noexcept { return multidim::to_pointer(this->data_); }
 	private:
 		friend B;
-		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::const_reference operator[](typename B::size_type index) const noexcept {
 			assert(index < this->size_);

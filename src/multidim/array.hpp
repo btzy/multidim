@@ -226,15 +226,15 @@ namespace multidim {
 		/**
 		 * Gets a pointer to the underlying base elements.
 		 */
-		constexpr typename B::base_element* data() noexcept { return to_pointer(this->data_); }
-		constexpr const typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
+		constexpr typename B::base_element* data() noexcept { return multidim::to_pointer(this->data_); }
+		constexpr const typename B::base_element* data() const noexcept { return multidim::to_pointer(this->data_); }
 	private:
 		friend B;
 		/**
 		 * Gets a pointer to the underlying base elements, offsetted by some index.
 		 */
-		constexpr typename B::base_element* data_offset(typename B::size_type index) noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
-		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr typename B::base_element* data_offset(typename B::size_type index) noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		/**
 		 * Gets a reference to the element at the specified index.
@@ -380,10 +380,10 @@ namespace multidim {
 			return array_const_ref<T, N>{this->data_, typename B::container_extents_type{ this->extents_ } };
 		}
 
-		constexpr typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
+		constexpr typename B::base_element* data() const noexcept { return multidim::to_pointer(this->data_); }
 	private:
 		friend B;
-		constexpr typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr typename B::base_element* data_offset(typename B::size_type index) const noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::reference operator[](typename B::size_type index) const noexcept {
 			assert(index < N);
@@ -458,10 +458,10 @@ namespace multidim {
 		//constexpr array_const_ref(array_const_ref&&) = default;
 		constexpr array_const_ref(const typename B::base_element* data, const typename B::container_extents_type& extents) noexcept : B(extents.inner(), data) {}
 
-		constexpr const typename B::base_element* data() const noexcept { return to_pointer(this->data_); }
+		constexpr const typename B::base_element* data() const noexcept { return multidim::to_pointer(this->data_); }
 	private:
 		friend B;
-		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return to_pointer(this->data_) + index * this->extents_.stride(); }
+		constexpr const typename B::base_element* data_offset(typename B::size_type index) const noexcept { return multidim::to_pointer(this->data_) + index * this->extents_.stride(); }
 	public:
 		constexpr typename B::const_reference operator[](typename B::size_type index) const noexcept {
 			assert(index < N);

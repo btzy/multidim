@@ -5,6 +5,7 @@ add_executable(unit_test
 	array.cpp
 	dynarray.cpp
 	mixed.cpp
+	alg_nonmodify.cpp
 )
 
 if(NOT CXX_OVERRIDE_STANDARD)
