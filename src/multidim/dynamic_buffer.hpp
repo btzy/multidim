@@ -23,8 +23,8 @@ namespace multidim {
 		constexpr dynamic_buffer& operator=(dynamic_buffer&&) noexcept = default;
 		/**
 		 * Creates a new buffer with a copy of the data from the current one.
-		 * Note: If the size of the current buffer is specified incorrectly, then behaviour is undefined.
-		 * @param sz the size of the current buffer
+		 * Note: If the size of the current buffer is actually smaller than the specified elements to copy, then behaviour is undefined.
+		 * @param sz the size to copy
 		 */
 		constexpr dynamic_buffer clone(size_t sz) const {
 			std::unique_ptr<T[]> tmp = std::make_unique<T[]>(sz);

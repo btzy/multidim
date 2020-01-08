@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <iterator> // for std::reverse_iterator
 #include <memory> // for std::forward()
 #include <type_traits>
@@ -180,9 +181,15 @@ namespace multidim {
 		constexpr explicit dynarray(TN n, TNs... ns) noexcept : dynarray(n, typename B::element_extents_type(ns...)) {}
 		constexpr explicit dynarray() noexcept : dynarray(0, typename B::element_extents_type()) {}
 		constexpr dynarray& operator=(const dynarray& other) {
-			this->size_ = other.size_;
-			this->extents_ = other.extents_;
-			this->data_ = other.data_.clone(other.size_ * other.extents_.stride());
+			if (this->size_ != other.size_ || this->extents_ != other.extents_) {
+				this->size_ = other.size_;
+				this->extents_ = other.extents_;
+				this->data_ = other.data_.clone(other.size_ * other.extents_.stride());
+			}
+			else {
+				// If the size and extent are equal, then just reuse the old buffer because it has the correct length already.
+				std::copy_n(other.data_.data(), other.size_ * other.extents_.stride(), this->data_.data());
+			}
 			return *this;
 		}
 		constexpr dynarray& operator=(dynarray&& other) noexcept(std::is_nothrow_move_assignable_v<typename B::buffer_type>) {
@@ -208,7 +215,7 @@ namespace multidim {
 		}
 
 		/**
-		 * Assign to this container some data starting from the given iterator.  The number of elements copied is determined by the size of this container.  Behaviour is undefined if there are not enough elements starting from the given iterator.
+		 * Assign to this container some data starting from the given iterator.  The number of elements copied is determined by the size of this container.  Behaviour is undefined if there are not enough elements starting from the given iterator, or if the element extents don't match.
 		 */
 		template <typename InputIt>
 		constexpr void assign(InputIt first) {
