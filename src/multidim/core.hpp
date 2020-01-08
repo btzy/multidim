@@ -17,6 +17,7 @@
 namespace multidim {
 
 	struct inner_container_base {};
+	struct reference_base {};
 
 	/**
 	 * Inherit from this class to define an inner container type (e.g. inner_array or inner_dynarray).
@@ -29,6 +30,13 @@ namespace multidim {
 		using container_extents_type = typename Container::container_extents_type;
 		static_assert(std::is_same_v<typename Container::container_extents_type, typename Ref::container_extents_type> && std::is_same_v<typename Ref::container_extents_type, typename ConstRef::container_extents_type>, "Container, Ref, and ConstRef must have the same extents_type");
 	};
+
+	/**
+	 * Inherit from this class to indicate that it is a fake reference type.
+	 * @param T the reference type (for CRTP)
+	 */
+	template <typename T>
+	struct enable_reference : public reference_base {};
 
 
 

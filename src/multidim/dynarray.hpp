@@ -314,7 +314,7 @@ namespace multidim {
 	 * @tparam T the element type; if this is the innermost dimension then T is the base element type, otherwise T is an inner container (i.e. something that extends from enable_inner_container)
 	 */
 	template <typename T>
-	class dynarray_ref : public dynarray_base<dynarray_ref<T>, T, false, false> {
+	class dynarray_ref : public dynarray_base<dynarray_ref<T>, T, false, false>, public enable_reference<dynarray_ref<T>> {
 	private:
 		using B = dynarray_base<dynarray_ref<T>, T, false, false>;
 		static_assert(B::container_extents_type::is_dynamic, "extents_type must be dynamic");
@@ -451,7 +451,7 @@ namespace multidim {
 	};
 
 	template <typename T>
-	class dynarray_const_ref : public dynarray_base<dynarray_const_ref<T>, T, false, true> {
+	class dynarray_const_ref : public dynarray_base<dynarray_const_ref<T>, T, false, true>, public enable_reference<dynarray_const_ref<T>> {
 	private:
 		using B = dynarray_base<dynarray_const_ref<T>, T, false, true>;
 		static_assert(B::container_extents_type::is_dynamic, "extents_type must be dynamic");

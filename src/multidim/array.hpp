@@ -304,7 +304,7 @@ namespace multidim {
 	 * @tparam N the number of elements in this array
 	 */
 	template <typename T, size_t N>
-	class array_ref : public array_base<array_ref<T, N>, T, N, false, false> {
+	class array_ref : public array_base<array_ref<T, N>, T, N, false, false>, public enable_reference<array_ref<T, N>> {
 	private:
 		using B = array_base<array_ref<T, N>, T, N, false, false>;
 		static_assert(!B::container_extents_type::is_dynamic, "extents_type must be static");
@@ -442,7 +442,7 @@ namespace multidim {
 	};
 
 	template <typename T, size_t N>
-	class array_const_ref : public array_base<array_const_ref<T, N>, T, N, false, true> {
+	class array_const_ref : public array_base<array_const_ref<T, N>, T, N, false, true>, public enable_reference<array_const_ref<T, N>> {
 	private:
 		using B = array_base<array_const_ref<T, N>, T, N, false, true>;
 		static_assert(!B::container_extents_type::is_dynamic, "extents_type must be static");
