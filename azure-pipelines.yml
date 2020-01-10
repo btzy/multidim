@@ -3,11 +3,6 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
-trigger:
-- master
-pr:
-- master
-
 jobs:
 - job: windows
   displayName: 'Windows'
