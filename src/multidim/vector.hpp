@@ -2,6 +2,7 @@
 
 #include <iterator> // for std::reverse_iterator and iterator_category
 #include <memory> // for std::forward() and uninitialized_copy_n() et al
+#include <stdexcept> // for std::out_of_range
 #include <type_traits>
 
 #include "dynarray.hpp"
@@ -9,6 +10,7 @@
 #include "core.hpp"
 #include "iterator.hpp"
 #include "memory.hpp"
+#include "alg_modify.hpp" // for multidim::move_n() etc
 
 namespace multidim {
 
@@ -213,6 +215,9 @@ namespace multidim {
 			assert(index < this->size_);
 			return get_element(data(), index);
 		}
+		/**
+		 * Gets a reference to the element at the specified index.  Throws std::out_of_range if index >= size().
+		 */
 		constexpr reference at(size_type index) noexcept { if (index >= this->size_) throw std::out_of_range("element access index out of range"); else return operator[](index); }
 		constexpr const_reference at(size_type index) const noexcept { if (index >= this->size_) throw std::out_of_range("element access index out of range"); else return operator[](index); }
 
@@ -241,6 +246,9 @@ namespace multidim {
 
 
 
+		/**
+		 * Reserves enough space to store at least new_cap elements, without further reallocation.
+		 */
 		constexpr void reserve(size_type new_cap) {
 			if (new_cap <= capacity_) return;
 			buffer_type tmp_buf(new_cap * extents_.stride());
@@ -250,6 +258,22 @@ namespace multidim {
 			capacity_ = new_cap;
 		}
 
+		/**
+		 * Requests the removal of unused capacity.
+		 */
+		constexpr void shrink_to_fit() {
+			if (size_ == capacity_) return;
+			assert(size_ < capacity_);
+			buffer_type tmp_buf(size_ * extents_.stride());
+			multidim::uninitialized_move(data(), data_offset(size_), tmp_buf.data());
+			std::destroy(data(), data_offset(size_)); // destroy existing data
+			data_ = std::move(tmp_buf);
+			capacity_ = size_;
+		}
+
+		/**
+		 * Removes all existing elements from the vector.
+		 */
 		constexpr void clear() noexcept {
 			std::destroy(data(), data_offset(size_)); // destroy existing data
 			size_ = 0;
@@ -267,6 +291,9 @@ namespace multidim {
 		}
 
 	public:
+		/**
+		 * Adds an element to the back of the vector.  This is safe even if `value` is a reference to an element of this same vector.
+		 */
 		constexpr void push_back(const_reference value) noexcept {
 			const size_type new_size = size_ + 1;
 			if (new_size <= capacity_) {
@@ -301,7 +328,7 @@ namespace multidim {
 				// reserve space and update capacity
 				buffer_type tmp_buf = create_new_buffer_amortized(new_size, capacity_);
 				// copy the new element
-				static_assert(extents_.stride() == 1);
+				static_assert(this->extents_.stride() == 1);
 				::new (static_cast<void*>(tmp_buf.data() + size_)) value_type(std::forward<Args>(args)...);
 				// copy/move the existing elements
 				multidim::uninitialized_move_if_noexcept(data(), data_offset(size_), tmp_buf.data());
@@ -313,10 +340,105 @@ namespace multidim {
 			}
 		}
 
+		/**
+		 * Removes the back element from this vector.  This is undefined behaviour if size()==0.
+		 */
 		void pop_back() noexcept {
 			--size_;
 			multidim::destroy_at(get_element(data_.data(), size_));
 		}
+
+
+		/**
+		 * Inserts elements into the vector at a specified position.
+		 */
+		constexpr iterator insert(const_iterator pos, const_reference value) {
+			auto [insert_begin, initialized_size] = make_space_for_insertion(pos, 1);
+			if (initialized_size == 1) {
+				*insert_begin = value;
+			}
+			else {
+				multidim::uninitialized_copy_at(value, *insert_begin);
+			}
+		}
+		constexpr iterator insert(const_iterator pos, size_type count, const_reference value) {
+			const auto [insert_begin, initialized_size] = make_space_for_insertion(pos, count);
+			multidim::fill_n(insert_begin, initialized_size, value);
+			multidim::uninitialized_fill_n(insert_begin + initialized_size, count - initialized_size, value);
+		}
+		template <typename InputIt>
+		constexpr std::enable_if_t<std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, iterator> insert(const_iterator pos, InputIt first, InputIt last) {
+			static_assert(std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, "SFINAE bug");
+			// this SFINAE overload is for std::forward_iterator
+			// for std::forward_iterator, we have the multipass guarantee, so we can walk once to find the distance first, then prepare the correct amount of space, then copy the values in a second pass
+			const auto [insert_begin, initialized_size] = make_space_for_insertion(pos, std::distance(first, last));
+			const iterator uninit_begin = multidim::copy(first, first + initialized_size, insert_begin);
+			multidim::uninitialized_copy(first + initialized_size, last, uninit_begin);
+		}
+		template <typename InputIt>
+		constexpr std::enable_if_t<!std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, iterator> insert(const_iterator pos, InputIt first, InputIt last) {
+			static_assert(!std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, "SFINAE bug");
+			if (pos == end()) {
+				// if we are inserting at the end, then just successively call push_back()
+				for (; first != last; ++first) {
+					push_back(*first);
+				}
+			}
+			else {
+				// if not, we move the current element to past-the-end of the vector, and replace the current element with the new one
+				// and continue doing so until there are no more elements to insert.
+				// then we call rotate() on the elements that are after the inserted elements, to put them back in order.
+				const size_type index = pos - begin();
+				size_type curr = index;
+				const size_type roll_count = end() - pos;
+				for (; first != last; ++first) {
+					push_back(std::move(operator[](curr)));
+					operator[](curr) = *first;
+					++curr;
+				}
+				multidim::rotate(end() - roll_count, end() - curr % roll_count, end());
+			}
+		}
+		constexpr iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
+			const auto [insert_begin, initialized_size] = make_space_for_insertion(pos, ilist.size());
+			const iterator uninit_begin = multidim::copy(ilist.begin(), ilist.begin() + initialized_size, insert_begin);
+			multidim::uninitialized_copy(ilist.begin() + initialized_size, ilist.end(), uninit_begin);
+		}
+	private:
+		/**
+		 * Moves elements at or after `pos` by `count` positions, to make space for inserting elements.  It will change size().  This might cause a reallocation, which would change capacity().
+		 * Returns a new iterator to `pos` (which might be different from the original one if reallocation occurs), as well as the number of elements (starting from `pos` that are already constructed).
+		 */
+		constexpr std::pair<iterator, size_type> make_space_for_insertion(const_iterator pos, size_type count) {
+			const size_t index = pos - begin();
+			if (size_ + count <= capacity_) { // no need to reallocate
+				if (index + count <= size_) { // all of the made space already contains old elements
+					const size_type marker = size_ - count;
+					assert(marker >= index);
+					multidim::uninitialized_move(begin() + marker, end(), end());
+					multidim::move_backward(begin() + index, begin() + marker, begin() + index + count);
+					size_ += count;
+					return { begin() + index, count };
+				}
+				else { // some of the made space will contain uninitialized elements
+					multidim::uninitialized_move(begin() + index, end(), begin() + index + count);
+					const size_type initialized_space = size_ - index;
+					size_ += count;
+					assert(initialized_space <= count);
+					return { begin() + index, initialized_space };
+				}
+			}
+			else { // need to reallocate
+				buffer_type buf = create_new_buffer_amortized(size_ + count, capacity_); // changes capacity_
+				multidim::copy(data(), data_offset(index), buf.data());
+				multidim::copy(data_offset(index), data_offset(size_), buf.data() + (index + count) * extents_.stride());
+				data_ = std::move(buf);
+				size_ += count;
+				return{ begin() + index, 0 };
+			}
+		}
+	public:
+
 
 
 		/**
