@@ -2,6 +2,7 @@
 
 #include <iterator> // for std::reverse_iterator and iterator_category
 #include <memory> // for std::forward() and uninitialized_copy_n() et al
+#include <limits> // for std::numeric_limits<>
 #include <stdexcept> // for std::out_of_range
 #include <type_traits>
 
@@ -222,7 +223,7 @@ namespace multidim {
 		constexpr const_reference at(size_type index) const noexcept { if (index >= this->size_) throw std::out_of_range("element access index out of range"); else return operator[](index); }
 
 		constexpr size_type size() const noexcept { return size_; }
-		constexpr size_type max_size() const noexcept { return size_; }
+		constexpr size_type max_size() const noexcept { return std::numeric_limits<difference_type>::max(); }
 		[[nodiscard]] constexpr bool empty() const noexcept { return size_ == 0; }
 		constexpr size_type capacity() const noexcept { return capacity_; }
 
@@ -328,7 +329,7 @@ namespace multidim {
 				// reserve space and update capacity
 				buffer_type tmp_buf = create_new_buffer_amortized(new_size, capacity_);
 				// copy the new element
-				static_assert(this->extents_.stride() == 1);
+				static_assert(std::is_same_v<decltype(this->extents_), multidim::unit_extent>);
 				::new (static_cast<void*>(tmp_buf.data() + size_)) value_type(std::forward<Args>(args)...);
 				// copy/move the existing elements
 				multidim::uninitialized_move_if_noexcept(data(), data_offset(size_), tmp_buf.data());

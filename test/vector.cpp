@@ -64,10 +64,10 @@ public:
 	WrappedInputIterator& operator=(const WrappedInputIterator&) = default;
 	WrappedInputIterator& operator=(WrappedInputIterator&&) = default;
 	WrappedInputIterator(const InputIt& iter) noexcept(std::is_nothrow_copy_constructible_v<InputIt>) : InputIt(iter) {}
-	using InputIt::value_type;
-	using InputIt::difference_type;
-	using InputIt::reference;
-	using InputIt::pointer;
+	using typename InputIt::value_type;
+	using typename InputIt::difference_type;
+	using typename InputIt::reference;
+	using typename InputIt::pointer;
 	using iterator_category = std::input_iterator_tag; // This is the important thing that makes WrappedInputIterator not a LegacyForwardIterator.
 	using InputIt::operator*;
 	using InputIt::operator->;
@@ -332,8 +332,9 @@ TEST_CASE("1D vector shrink_to_fit", "[1d][vector][shrink_to_fit]") {
 	REQUIRE_NOTHROW(Tracker<int>::validate_ctr(8));
 	REQUIRE_NOTHROW(Tracker<int>::validate_net(4));
 	REQUIRE(arr.capacity() == 7);
-	std::vector v(arr.begin(), arr.end());
+	std::vector<int> v(arr.begin(), arr.end());
 	arr.shrink_to_fit();
 	REQUIRE(arr.capacity() == 4);
+	REQUIRE(arr.size() == 4);
 	REQUIRE(std::equal(v.begin(), v.end(), arr.begin(), arr.end()));
 }
