@@ -42,7 +42,7 @@ namespace multidim {
 		/**
 		 * Gets the number of elements (not necessarily base elements) represented in this extent.  For static_extent, this is always equal to N.
 		 */
-		constexpr size_t top_extent() const noexcept {
+		constexpr static size_t top_extent() noexcept {
 			return N;
 		}
 		/**

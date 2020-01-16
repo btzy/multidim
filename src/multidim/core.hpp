@@ -48,11 +48,11 @@ namespace multidim {
 		/**
 		 * Gets the number of base elements represented in this extent.  For unit_extent, this is always equal to 1.
 		 */
-		constexpr size_t stride() const noexcept {
+		constexpr static size_t stride() noexcept {
 			return 1;
 		}
-		friend bool operator==(const unit_extent&, const unit_extent&) noexcept { return true; }
-		friend bool operator!=(const unit_extent& a, const unit_extent& b) noexcept { return !(a == b); }
+		friend constexpr bool operator==(const unit_extent&, const unit_extent&) noexcept { return true; }
+		friend constexpr bool operator!=(const unit_extent& a, const unit_extent& b) noexcept { return !(a == b); }
 	};
 
 

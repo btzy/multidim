@@ -51,6 +51,35 @@ struct Tracker {
 	T val;
 };
 
+/**
+ * A LegacyInputIterator that is not a LegacyForwardIterator, but wraps a LegacyInputIterator that might be a LegacyForwardIterator.
+ * This allows testing of methods like assign() and insert() that are SFINAE'd on whether the given LegacyInputIterator is a LegacyForwardIterator.
+ */
+template <typename InputIt>
+struct WrappedInputIterator : private InputIt {
+public:
+	WrappedInputIterator() = default;
+	WrappedInputIterator(const WrappedInputIterator&) = default;
+	WrappedInputIterator(WrappedInputIterator&&) = default;
+	WrappedInputIterator& operator=(const WrappedInputIterator&) = default;
+	WrappedInputIterator& operator=(WrappedInputIterator&&) = default;
+	WrappedInputIterator(const InputIt& iter) noexcept(std::is_nothrow_copy_constructible_v<InputIt>) : InputIt(iter) {}
+	using InputIt::value_type;
+	using InputIt::difference_type;
+	using InputIt::reference;
+	using InputIt::pointer;
+	using iterator_category = std::input_iterator_tag; // This is the important thing that makes WrappedInputIterator not a LegacyForwardIterator.
+	using InputIt::operator*;
+	using InputIt::operator->;
+	using InputIt::operator++;
+	friend bool operator==(const WrappedInputIterator& a, const WrappedInputIterator& b) noexcept(noexcept(std::declval<InputIt>() == std::declval<InputIt>())) {
+		return static_cast<const InputIt&>(a) == static_cast<const InputIt&>(b);
+	}
+	friend bool operator!=(const WrappedInputIterator& a, const WrappedInputIterator& b) noexcept(noexcept(std::declval<InputIt>() != std::declval<InputIt>())) {
+		return static_cast<const InputIt&>(a) != static_cast<const InputIt&>(b);
+	}
+};
+
 TEST_CASE("1D vector basic operations", "[1d][vector]") {
 	Tracker<int>::reset();
 	multidim::vector<Tracker<int>> arr;
@@ -229,6 +258,12 @@ TEST_CASE("1D vector assign", "[1d][vector][assign]") {
 	REQUIRE(arr == arr2);
 	arr2.assign(arr.begin(), arr.end());
 	REQUIRE(arr == arr2);
+	arr2.clear();
+	REQUIRE(arr != arr2);
+	arr2.assign(WrappedInputIterator(arr.begin()), WrappedInputIterator(arr.end()));
+	REQUIRE(arr == arr2);
+	arr2.assign(WrappedInputIterator(arr.begin()), WrappedInputIterator(arr.end()));
+	REQUIRE(arr == arr2);
 	arr2.assign(3, 99);
 	{
 		multidim::vector<Tracker<int>> ans;
@@ -284,4 +319,21 @@ TEST_CASE("1D vector iterator", "[1d][vector][iterator]") {
 		tmp.push_back(x);
 	}
 	REQUIRE(tmp == std::vector<int>{5, 7, 9, 10});
+}
+
+TEST_CASE("1D vector shrink_to_fit", "[1d][vector][shrink_to_fit]") {
+	Tracker<int>::reset();
+	multidim::vector<Tracker<int>> arr;
+	arr.reserve(7);
+	arr.push_back(5);
+	arr.push_back(7);
+	arr.push_back(9);
+	arr.push_back(10);
+	REQUIRE_NOTHROW(Tracker<int>::validate_ctr(8));
+	REQUIRE_NOTHROW(Tracker<int>::validate_net(4));
+	REQUIRE(arr.capacity() == 7);
+	std::vector v(arr.begin(), arr.end());
+	arr.shrink_to_fit();
+	REQUIRE(arr.capacity() == 4);
+	REQUIRE(std::equal(v.begin(), v.end(), arr.begin(), arr.end()));
 }
