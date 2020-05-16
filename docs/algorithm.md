@@ -61,3 +61,13 @@ For the algorithms listed below, if the remarks column contains "Equivalent", it
 | ----- | ----- | ----- |
 | `std::shuffle` | `multidim::shuffle` | Equivalent |
 | `std::sample` | `multidim::sample` | Equivalent |
+
+### Partitioning operations
+
+| Standard Algorithm | Multidim Algorithm | Remarks |
+| ----- | ----- | ----- |
+| `std::is_partitioned` | `multidim::is_partitioned` | Equivalent |
+| `std::partition` | `multidim::partition` | Equivalent |
+| `std::partition_copy` | `multidim::partition_copy` | Equivalent |
+| `std::stable_partition` | `multidim::stable_partition` | The O(N) algorithm is not provided by Multidim because it allocates additional memory; an O(N log N) algorithm that does not allocate memory is used instead, and it only requires LegacyForwardIterator but not LegacyBidirectionalIterator |
+| `std::partition_point` | `multidim::partition_point` | Equivalent |
