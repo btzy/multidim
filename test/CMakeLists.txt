@@ -6,6 +6,7 @@ add_executable(unit_test
 	dynarray.cpp
 	mixed.cpp
 	alg_nonmodify.cpp
+	alg_partition.cpp
 	vector.cpp
 )
 

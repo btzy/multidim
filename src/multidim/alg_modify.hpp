@@ -2,6 +2,7 @@
 
 #include <utility> // for std::move()
 #include <type_traits>
+#include <iterator>
 
 #include "multidim/alg_nonmodify.hpp" // for some helpers, e.g. multidim::find()
 
@@ -335,7 +336,7 @@ namespace multidim {
      * Furthermore, either InputIt or OutputIt must satisfy LegacyForwardIterator.
      */
     template <typename InputIt, typename OutputIt>
-    constexpr inline std::enable_if<std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, OutputIt> unique_copy(InputIt first, InputIt last, OutputIt d_first) {
+    constexpr inline std::enable_if_t<std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, OutputIt> unique_copy(InputIt first, InputIt last, OutputIt d_first) {
         if (first == last) return d_first;
         InputIt prev = first;
         *d_first++ = *first;
@@ -348,7 +349,7 @@ namespace multidim {
         return d_first;
     }
     template <typename InputIt, typename OutputIt, typename BinaryPredicate>
-    constexpr inline std::enable_if<std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, OutputIt> unique_copy(InputIt first, InputIt last, OutputIt d_first, BinaryPredicate p) {
+    constexpr inline std::enable_if_t<std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, OutputIt> unique_copy(InputIt first, InputIt last, OutputIt d_first, BinaryPredicate p) {
         if (first == last) return d_first;
         InputIt prev = first;
         *d_first++ = *first;
@@ -373,7 +374,7 @@ namespace multidim {
         return ++d_first;
     }
     template <typename InputIt, typename OutputIt, typename BinaryPredicate>
-    constexpr inline std::enable_if<!std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, OutputIt> unique_copy(InputIt first, InputIt last, OutputIt d_first, BinaryPredicate p) {
+    constexpr inline std::enable_if_t<!std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<InputIt>::iterator_category>, OutputIt> unique_copy(InputIt first, InputIt last, OutputIt d_first, BinaryPredicate p) {
         static_assert(std::is_base_of_v<std::forward_iterator_tag, typename std::iterator_traits<OutputIt>::iterator_category>);
         if (first == last) return d_first;
         *d_first = *first;
